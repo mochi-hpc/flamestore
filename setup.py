@@ -23,7 +23,10 @@ def get_tensorflow_lib_dir():
     return path
 
 def get_tensorflow_library():
-    return 'tensorflow_framework'
+    if tf.__version__ < '1.14.0':
+        return 'tensorflow_framework'
+    else:
+        return ':libtensorflow_framework.so.1'
 
 (opt,) = get_config_vars('OPT')
 os.environ['OPT'] = " ".join(flag for flag in opt.split() if flag != '-Wstrict-prototypes')
