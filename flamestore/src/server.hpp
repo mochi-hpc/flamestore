@@ -231,7 +231,8 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     flamestore_provider(flamestore_engine_wrapper& server, uint16_t provider_id,
                   const std::string& backend = "memory",
-                  const std::string& logfile = "", int loglevel=2)
+                  const std::string& logfile = "", int loglevel=2,
+                  const flamestore_backend::config_type& config = flamestore_backend::config_type())
     : tl::provider<flamestore_provider>(server.engine(), provider_id)
     , m_server(server) {
         std::stringstream loggername;
@@ -264,7 +265,6 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
                     m_backend.reset();
                 });
         m_logger->trace("Initializing {} backend", backend);
-        flamestore_backend::config_type config;
         m_backend = flamestore_backend::create(backend, m_server_context, config);
         m_logger->trace("Done initializing provider");
     }

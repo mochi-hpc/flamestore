@@ -16,10 +16,7 @@ struct flamestore_model {
     std::string       m_optimizer_config;
     std::string       m_model_signature;
     std::string       m_optimizer_signature;
-    T                 m_model_data;
-    T                 m_optimizer_data;
-    tl::bulk          m_model_data_bulk;
-    tl::bulk          m_optimizer_data_bulk;
+    T                 m_impl;
 
     flamestore_model() = default;
     flamestore_model(const flamestore_model&) = delete;

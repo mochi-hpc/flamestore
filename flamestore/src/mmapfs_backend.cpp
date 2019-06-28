@@ -20,19 +20,25 @@ class flamestore_mmapfs_backend : public flamestore_backend {
 
     private:
 
-        struct mmap_entry {
-            void*       m_data = nullptr;
-            std::size_t m_size = 0;
+        struct model_impl {
+            void*       m_model_data = nullptr;
+            std::size_t m_model_size = 0;
+            void*       m_optimizer_data = nullptr;
+            std::size_t m_optimizer_size = 0;
+            tl::bulk    m_model_data_bulk;
+            tl::bulk    m_optimizer_data_bulk;
 
-            ~mmap_entry() {
-                if(m_data)
-                    munmap(m_data, m_size);
+            ~model_impl() {
+                if(m_model_data)
+                    munmap(m_model_data, m_model_size);
+                if(m_optimizer_data)
+                    munmap(m_optimizer_data, m_optimizer_size);
             }
         };
 
     public:
 
-        using model_t = flamestore_model<mmap_entry>;
+        using model_t = flamestore_model<model_impl>;
 
     private:
 
@@ -92,17 +98,17 @@ class flamestore_mmapfs_backend : public flamestore_backend {
             {
                 struct stat st;
                 stat(model_data_filename.c_str(), &st);
-                model->m_model_data.m_size = st.st_size;
+                model->m_impl.m_model_size = st.st_size;
                 int fd = open(model_data_filename.c_str(), O_RDWR);
-                model->m_model_data.m_data
-                    = mmap(0, model->m_model_data.m_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                model->m_impl.m_model_data
+                    = mmap(0, model->m_impl.m_model_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
                 close(fd);
                 try {
-                    if(model->m_model_data.m_size != 0) {
+                    if(model->m_impl.m_model_size != 0) {
                         std::vector<std::pair<void*, size_t>> model_data_ptr(1);
-                        model_data_ptr[0].first  = (void*)(model->m_model_data.m_data);
-                        model_data_ptr[0].second = model->m_model_data.m_size;
-                        model->m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
+                        model_data_ptr[0].first  = (void*)(model->m_impl.m_model_data);
+                        model_data_ptr[0].second = model->m_impl.m_model_size;
+                        model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
                     }
                 } catch(const tl::exception& e) {
                     m_logger->critical("Exception caught in flamestore_provider::_reload_model_from_disk: {}", e.what());
@@ -133,17 +139,17 @@ class flamestore_mmapfs_backend : public flamestore_backend {
             {
                 struct stat st;
                 stat(optimizer_data_filename.c_str(), &st);
-                model->m_optimizer_data.m_size = st.st_size;
+                model->m_impl.m_optimizer_size = st.st_size;
                 int fd = open(optimizer_data_filename.c_str(), O_RDWR);
-                model->m_optimizer_data.m_data
-                    = mmap(0, model->m_optimizer_data.m_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                model->m_impl.m_optimizer_data
+                    = mmap(0, model->m_impl.m_optimizer_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
                 close(fd);
                 try {
-                    if(model->m_optimizer_data.m_size != 0) {
+                    if(model->m_impl.m_optimizer_size != 0) {
                         std::vector<std::pair<void*, size_t>> optimizer_data_ptr(1);
-                        optimizer_data_ptr[0].first  = (void*)(model->m_optimizer_data.m_data);
-                        optimizer_data_ptr[0].second = model->m_optimizer_data.m_size;
-                        model->m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
+                        optimizer_data_ptr[0].first  = (void*)(model->m_impl.m_optimizer_data);
+                        optimizer_data_ptr[0].second = model->m_impl.m_optimizer_size;
+                        model->m_impl.m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
                     }
                 } catch(const tl::exception& e) {
                     m_logger->critical("Exception caught in flamestore_provider::_reload_model_from_disk: {}", e.what());
@@ -284,12 +290,12 @@ void flamestore_mmapfs_backend::register_model(
 
     try {
 
-        model->m_model_config        = std::move(model_config);
-        model->m_optimizer_config    = std::move(optimizer_config);
-        model->m_model_signature     = std::move(model_signature);
-        model->m_optimizer_signature = std::move(optimizer_signature);
-        model->m_model_data.m_size   = model_data_size;
-        model->m_optimizer_data.m_size = optimizer_data_size;
+        model->m_model_config          = std::move(model_config);
+        model->m_optimizer_config      = std::move(optimizer_config);
+        model->m_model_signature       = std::move(model_signature);
+        model->m_optimizer_signature   = std::move(optimizer_signature);
+        model->m_impl.m_model_size     = model_data_size;
+        model->m_impl.m_optimizer_size = optimizer_data_size;
 
         std::stringstream basedir;
         basedir << m_path << "/" << model_name;
@@ -341,7 +347,7 @@ void flamestore_mmapfs_backend::register_model(
                 // XXX cleanup
                 return;
             }
-            model->m_model_data.m_data
+            model->m_impl.m_model_data
                 = mmap(0, model_data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
             // XXX check mmap worked
             close(fd);
@@ -366,24 +372,24 @@ void flamestore_mmapfs_backend::register_model(
                 // XXX cleanup
                 return;
             }
-            model->m_optimizer_data.m_data
+            model->m_impl.m_optimizer_data
                 = mmap(0, optimizer_data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
             // XXX check mmap worked
             close(fd);
         }
 
-        if(model->m_model_data.m_size != 0) {
+        if(model->m_impl.m_model_size != 0) {
             std::vector<std::pair<void*, size_t>> model_data_ptr(1);
-            model_data_ptr[0].first  = (void*)(model->m_model_data.m_data);
-            model_data_ptr[0].second = model->m_model_data.m_size;
-            model->m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
+            model_data_ptr[0].first  = (void*)(model->m_impl.m_model_data);
+            model_data_ptr[0].second = model->m_impl.m_model_size;
+            model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
         }
 
-        if(model->m_optimizer_data.m_size != 0) {
+        if(model->m_impl.m_optimizer_size != 0) {
             std::vector<std::pair<void*, size_t>> optimizer_data_ptr(1);
-            optimizer_data_ptr[0].first  = (void*)(model->m_optimizer_data.m_data);
-            optimizer_data_ptr[0].second = model->m_optimizer_data.m_size;
-            model->m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
+            optimizer_data_ptr[0].first  = (void*)(model->m_impl.m_optimizer_data);
+            optimizer_data_ptr[0].second = model->m_impl.m_optimizer_size;
+            model->m_impl.m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
         }
 
     } catch(const tl::exception& e) {
@@ -450,9 +456,9 @@ void flamestore_mmapfs_backend::write_model_data(
         m_logger->trace("Leaving flamestore_mmapfs_backend::write_model_data");
         return;
     }
-    model->m_model_data_bulk << remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_model_data_bulk << remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
-    msync(model->m_model_data.m_data, model->m_model_data.m_size, MS_SYNC);
+    msync(model->m_impl.m_model_data, model->m_impl.m_model_size, MS_SYNC);
 }
 
 void flamestore_mmapfs_backend::read_model_data(
@@ -480,7 +486,7 @@ void flamestore_mmapfs_backend::read_model_data(
         return;
     }
     m_logger->info("Pushing data to model \"{}\"", model_name);
-    model->m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }
 
@@ -510,9 +516,9 @@ void flamestore_mmapfs_backend::write_optimizer_data(
         return;
     }
     m_logger->info("Pulling data from model optimizer \"{}\"", model_name);
-    model->m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
-    msync(model->m_optimizer_data.m_data, model->m_optimizer_data.m_size, MS_SYNC);
+    msync(model->m_impl.m_optimizer_data, model->m_impl.m_optimizer_size, MS_SYNC);
 }
 
 void flamestore_mmapfs_backend::read_optimizer_data(
@@ -541,6 +547,6 @@ void flamestore_mmapfs_backend::read_optimizer_data(
         return;
     }
     m_logger->info("Pushing data to model optimizer \"{}\"", model_name);
-    model->m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }

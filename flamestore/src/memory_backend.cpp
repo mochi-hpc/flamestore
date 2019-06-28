@@ -8,9 +8,16 @@ namespace tl = thallium;
 
 class flamestore_memory_backend : public flamestore_backend {
 
+        struct model_impl {
+            std::vector<char> m_model_data;
+            std::vector<char> m_optimizer_data;
+            tl::bulk          m_model_data_bulk;
+            tl::bulk          m_optimizer_data_bulk;
+        };
+
     public:
 
-        using model_t = flamestore_model<std::vector<char>>;
+        using model_t = flamestore_model<model_impl>;
         using name_t = std::string;
         using lock_guard_t = std::lock_guard<tl::mutex>;
 
@@ -162,21 +169,21 @@ void flamestore_memory_backend::register_model(
         model->m_optimizer_config    = std::move(optimizer_config);
         model->m_model_signature     = std::move(model_signature);
         model->m_optimizer_signature = std::move(optimizer_signature);
-        model->m_model_data.resize(model_data_size);
-        model->m_optimizer_data.resize(optimizer_data_size);
+        model->m_impl.m_model_data.resize(model_data_size);
+        model->m_impl.m_optimizer_data.resize(optimizer_data_size);
 
-        if(model->m_model_data.size() != 0) {
+        if(model->m_impl.m_model_data.size() != 0) {
             std::vector<std::pair<void*, size_t>> model_data_ptr(1);
-            model_data_ptr[0].first  = (void*)(model->m_model_data.data());
-            model_data_ptr[0].second = model->m_model_data.size();
-            model->m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
+            model_data_ptr[0].first  = (void*)(model->m_impl.m_model_data.data());
+            model_data_ptr[0].second = model->m_impl.m_model_data.size();
+            model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
         }
 
-        if(model->m_optimizer_data.size() != 0) {
+        if(model->m_impl.m_optimizer_data.size() != 0) {
             std::vector<std::pair<void*, size_t>> optimizer_data_ptr(1);
-            optimizer_data_ptr[0].first  = (void*)(model->m_optimizer_data.data());
-            optimizer_data_ptr[0].second = model->m_optimizer_data.size();
-            model->m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
+            optimizer_data_ptr[0].first  = (void*)(model->m_impl.m_optimizer_data.data());
+            optimizer_data_ptr[0].second = model->m_impl.m_optimizer_data.size();
+            model->m_impl.m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
         }
 
     } catch(const tl::exception& e) {
@@ -243,7 +250,7 @@ void flamestore_memory_backend::write_model_data(
         m_logger->trace("Leaving flamestore_provider::on_write_model_data");
         return;
     }
-    model->m_model_data_bulk << remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_model_data_bulk << remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }
 
@@ -272,7 +279,7 @@ void flamestore_memory_backend::read_model_data(
         return;
     }
     m_logger->info("Pushing data to model \"{}\"", model_name);
-    model->m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }
 
@@ -302,7 +309,7 @@ void flamestore_memory_backend::write_optimizer_data(
         return;
     }
     m_logger->info("Pulling data from model optimizer \"{}\"", model_name);
-    model->m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }
 
@@ -332,6 +339,6 @@ void flamestore_memory_backend::read_optimizer_data(
         return;
     }
     m_logger->info("Pushing data to model optimizer \"{}\"", model_name);
-    model->m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
+    model->m_impl.m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
     req.respond(flamestore_status::OK());
 }
