@@ -1,0 +1,23 @@
+{
+    "protocol" : "tcp",
+    "loglevel" : 1,
+    "backend" : "mochi",
+    "flamestore" : {
+        "provider_id" : 0
+    },
+    "sdskv" : {
+        "provider_id" : 0,
+        "database" : {
+            "name" : "flamestore-db",
+            "path" : ".",
+            "type" : "leveldb"
+        }
+    },
+    "bake" : {
+        "provider_id" : 0,
+        "target" : {
+            "path" : "/dev/shm/flamestore-data.{rank}.dat",
+            "size" : 10485760
+        }
+    }
+}

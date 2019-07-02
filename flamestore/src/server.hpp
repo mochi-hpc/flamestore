@@ -260,12 +260,12 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
         define("flamestore_read_optimizer_data",  &flamestore_provider::on_read_optimizer_data);
         define("flamestore_start_sync_model",     &flamestore_provider::on_start_sync_model);
         define("flamestore_stop_sync_model",      &flamestore_provider::on_stop_sync_model);
+        m_logger->trace("Initializing {} backend", backend);
+        m_backend = flamestore_backend::create(backend, m_server_context, config);
         get_engine().on_finalize([this]() {
                     m_logger->trace("Calling finalize callback");
                     m_backend.reset();
                 });
-        m_logger->trace("Initializing {} backend", backend);
-        m_backend = flamestore_backend::create(backend, m_server_context, config);
         m_logger->trace("Done initializing provider");
     }
 

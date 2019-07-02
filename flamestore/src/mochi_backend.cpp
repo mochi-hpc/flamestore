@@ -114,57 +114,56 @@ class flamestore_mochi_backend : public flamestore_backend {
          *       ]
          *   }
          */
-        inline void _configure_backend(const std::string& config_file) {
-            std::ifstream ifs(config_file);
-            if(!ifs.good()) {
-                throw std::runtime_error("Could not open JSON configuration file");
-            }
+        inline void _configure_backend(const std::string& config) {
+            m_logger->trace("Configuring Mochi backend using JSON data");
             Json::Reader reader;
             Json::Value root;
-            reader.parse(ifs, root);
+            reader.parse(config.c_str(), root);
             // Check validity of the JSON file
-            if(!root.isMember("sdskv"))     throw std::runtime_error("CONFIG: Could not find sdskv entry");
+            if(!root.isMember("sdskv"))     throw std::runtime_error("Could not find sdskv entry");
             auto& sdskv = root["sdskv"];
-            if(!sdskv.isObject())           throw std::runtime_error("CONFIG: sdskv entry should be an object");
-            if(!sdskv.isMember("address"))  throw std::runtime_error("CONFIG: Could not find address in sdskv entry");
-            if(!sdskv.isMember("provider")) throw std::runtime_error("CONFIG: Could not find provider in sdskv entry");
-            if(!sdskv.isMember("database")) throw std::runtime_error("CONFIG: Could not find database in sdskv entry");
+            if(!sdskv.isObject())           throw std::runtime_error("sdskv entry should be an object");
+            if(!sdskv.isMember("address"))  throw std::runtime_error("Could not find address in sdskv entry");
+            if(!sdskv.isMember("provider")) throw std::runtime_error("Could not find provider in sdskv entry");
+            if(!sdskv.isMember("database")) throw std::runtime_error("Could not find database in sdskv entry");
             auto& sdskv_address  = sdskv["address"];
             auto& sdskv_provider = sdskv["provider"];
             auto& sdskv_database = sdskv["database"];
-            if(!sdskv_address.isString())   throw std::runtime_error("CONFIG: sdskv address should be a string");
-            if(!sdskv_provider.isUInt())    throw std::runtime_error("CONFIG: sdskv provider should be an unsigned int");
-            if(!sdskv_database.isString())  throw std::runtime_error("CONFIG: sdskv database should be a string");
+            if(!sdskv_address.isString())   throw std::runtime_error("sdskv address should be a string");
+            if(!sdskv_provider.isUInt())    throw std::runtime_error("sdskv provider should be an unsigned int");
+            if(!sdskv_database.isString())  throw std::runtime_error("sdskv database should be a string");
             unsigned sdskv_provider_id = sdskv_provider.asUInt();
-            if(sdskv_provider_id > 65535)   throw std::runtime_error("CONFIG: sdskv provider value too high");
-            if(!root.isMember("bake"))      throw std::runtime_error("CONFIG: Could not find bake entry in JSON file");
+            if(sdskv_provider_id > 65535)   throw std::runtime_error("sdskv provider value too high");
+            if(!root.isMember("bake"))      throw std::runtime_error("Could not find bake entry in JSON file");
             auto& bake = root["bake"];
-            if(!bake.isArray())             throw std::runtime_error("CONFIG: bake entry should be an array");
-            if(bake.size() == 0)            throw std::runtime_error("CONFIG: bake entry should list at least one provider");
+            if(!bake.isArray())             throw std::runtime_error("bake entry should be an array");
+            if(bake.size() == 0)            throw std::runtime_error("bake entry should list at least one provider");
             for(unsigned int i = 0; i < bake.size(); i++) {
                 auto& bake_instance = bake[i];
-                if(!bake_instance.isObject())           throw std::runtime_error("CONFIG: bake instances should be object");
-                if(!bake_instance.isMember("address"))  throw std::runtime_error("CONFIG: Could not find address in bake entry");
-                if(!bake_instance.isMember("provider")) throw std::runtime_error("CONFIG: Could not find provider in bake entry");
-                if(!bake_instance.isMember("target"))   throw std::runtime_error("CONFIG: Could not find target in bake entry");
+                if(!bake_instance.isObject())           throw std::runtime_error("bake instances should be object");
+                if(!bake_instance.isMember("address"))  throw std::runtime_error("Could not find address in bake entry");
+                if(!bake_instance.isMember("provider")) throw std::runtime_error("Could not find provider in bake entry");
+                if(!bake_instance.isMember("target"))   throw std::runtime_error("Could not find target in bake entry");
                 auto& bake_address  = bake_instance["address"];
                 auto& bake_provider = bake_instance["provider"];
                 auto& bake_target   = bake_instance["target"];
-                if(!bake_address.isString()) throw std::runtime_error("CONFIG: bake address should be a string");
-                if(!bake_provider.isUInt())  throw std::runtime_error("CONFIG: bake provider should be an unsigned int");
-                if(!bake_target.isString())  throw std::runtime_error("CONFIG: bake target should be a string");
+                if(!bake_address.isString()) throw std::runtime_error("bake address should be a string");
+                if(!bake_provider.isUInt())  throw std::runtime_error("bake provider should be an unsigned int");
+                if(!bake_target.isString())  throw std::runtime_error("bake target should be a string");
                 unsigned bake_provider_id = bake_provider.asUInt();
-                if(bake_provider_id > 65535) throw std::runtime_error("CONFIG: bake provider value too high");
+                if(bake_provider_id > 65535) throw std::runtime_error("bake provider value too high");
             }
             // now that we've checked the file, read it and initialize the provider handles
             int ret;
             margo_instance_id mid = m_engine->get_margo_instance();
             // initialize the sdskv info
+            m_logger->trace("Creating SDSKV client");
             ret = sdskv_client_init(mid, &(m_sdskv_info.m_client));
             if(ret != SDSKV_SUCCESS) {
                 _cleanup();
-                throw std::runtime_error("CONFIG: sdskv_client_init failed");
+                throw std::runtime_error("sdskv_client_init failed");
             }
+            m_logger->trace("Looking up SDSKV provider address");
             auto ep = m_engine->lookup(sdskv_address.asString());
             ret = sdskv_provider_handle_create(
                     m_sdskv_info.m_client,
@@ -173,22 +172,25 @@ class flamestore_mochi_backend : public flamestore_backend {
                     &(m_sdskv_info.m_ph));
             if(ret != SDSKV_SUCCESS) {
                 _cleanup();
-                throw std::runtime_error("CONFIG: sdskv_provider_handle_create failed");
+                throw std::runtime_error("sdskv_provider_handle_create failed");
             }
+            m_logger->trace("Opening SDSKV database {}", sdskv_database.asString());
             ret = sdskv_open(
                     m_sdskv_info.m_ph,
                     sdskv_database.asString().c_str(),
                     &(m_sdskv_info.m_db_id));
             if(ret != SDSKV_SUCCESS) {
                 _cleanup();
-                throw std::runtime_error("CONFIG: sdskv_open failed");
+                throw std::runtime_error("sdskv_open failed");
             }
             // initialize the bake info
+            m_logger->trace("Creating BAKE client");
             ret = bake_client_init(mid, &(m_bake_info.m_client));
             if(ret != BAKE_SUCCESS) {
                 _cleanup();
-                throw std::runtime_error("CONFIG: bake_client_init failed");
+                throw std::runtime_error("bake_client_init failed");
             }
+            m_logger->trace("Creating BAKE {} providers", bake.size());
             std::unordered_map<std::string, bake_provider_handle_t> bake_providers;
             m_bake_info.m_targets.reserve(bake.size());
             for(unsigned int i = 0; i < bake.size(); i++) {
@@ -203,7 +205,10 @@ class flamestore_mochi_backend : public flamestore_backend {
                 bake_target_info target_info;
                 target_info.m_ph = BAKE_PROVIDER_HANDLE_NULL;
                 if(it == bake_providers.end()) {
+                    m_logger->trace("Looking up BAKE address {}", bake_address.asString());
                     auto ep = m_engine->lookup(bake_address.asString().c_str());
+                    m_logger->trace("Creating BAKE provider handle ({},{}) for target {}",
+                            bake_address.asString(), bake_provider_id, bake_target.asString());
                     ret = bake_provider_handle_create(
                             m_bake_info.m_client,
                             ep.get_addr(),
@@ -211,10 +216,12 @@ class flamestore_mochi_backend : public flamestore_backend {
                             &(target_info.m_ph));
                     if(ret != BAKE_SUCCESS) {
                         _cleanup();
-                        throw std::runtime_error("CONFIG: bake_provider_handle_create failed");
+                        throw std::runtime_error("bake_provider_handle_create failed");
                     }
                     bake_providers[ss.str()] = target_info.m_ph;
                 } else {
+                    m_logger->trace("Reusing BAKE provider handle ({},{}) for target {}",
+                            bake_address.asString(), bake_provider_id, bake_target.asString());
                     target_info.m_ph = it->second;
                     bake_provider_handle_ref_incr(target_info.m_ph);
                 }
@@ -224,10 +231,11 @@ class flamestore_mochi_backend : public flamestore_backend {
                 if(ret != BAKE_SUCCESS) {
                     bake_provider_handle_release(target_info.m_ph);
                     _cleanup();
-                    throw std::runtime_error("CONFIG: bake_target_id_from_string failed");
+                    throw std::runtime_error("bake_target_id_from_string failed");
                 }
                 m_bake_info.m_targets.push_back(target_info);
             }
+            m_logger->trace("Done with configuration of Mochi backend");
         }
 
         /**
@@ -235,6 +243,7 @@ class flamestore_mochi_backend : public flamestore_backend {
          * If found, the model is cached in m_models and a pointer to it is returned.
          */
         inline model_t* _reload_model_from_database(const std::string& model_name) {
+            m_logger->trace("Reloading model {} from database", model_name);
             std::string model_config_key     = model_name + "/model/config";
             std::string optimizer_config_key = model_name + "/optimizer/config";
             std::string model_region_key     = model_name + "/model/data";
@@ -247,14 +256,19 @@ class flamestore_mochi_backend : public flamestore_backend {
 
             auto get_keyval_str = [this](const std::string& key, std::string& value) {
                 hg_size_t vsize;
+                m_logger->trace("Looking up length for key {}", key);
                 int ret = sdskv_length(
                         m_sdskv_info.m_ph,
                         m_sdskv_info.m_db_id,
                         (const void*)key.c_str(),
                         key.size(),
                         &vsize);
-                if(ret != SDSKV_SUCCESS) return false;
+                if(ret != SDSKV_SUCCESS) {
+                    m_logger->trace("Lookup failed (return code {})", ret);
+                    return false;
+                }
                 value.resize(vsize+1,'\0');
+                m_logger->trace("Getting value for key {}", key);
                 ret = sdskv_get(
                         m_sdskv_info.m_ph,
                         m_sdskv_info.m_db_id,
@@ -262,19 +276,27 @@ class flamestore_mochi_backend : public flamestore_backend {
                         key.size(),
                         (void*)value.data(),
                         &vsize);
-                if(ret != SDSKV_SUCCESS) return false;
+                if(ret != SDSKV_SUCCESS) {
+                    m_logger->trace("Getting value failed (return code {})", ret);
+                    return false;
+                }
                 return true;
             };
 
             auto get_keyval_auto = [this](const std::string& key, auto& value) {
                 hg_size_t vsize;
+                m_logger->trace("Looking up length for key {}", key);
                 int ret = sdskv_length(
                         m_sdskv_info.m_ph,
                         m_sdskv_info.m_db_id,
                         (const void*)key.c_str(),
                         key.size(),
                         &vsize);
-                if(ret != SDSKV_SUCCESS) return false;
+                if(ret != SDSKV_SUCCESS) {
+                    m_logger->trace("Lookup failed (return code {})", ret);
+                    return false;
+                }
+                m_logger->trace("Getting value for key {}", key);
                 ret = sdskv_get(
                         m_sdskv_info.m_ph,
                         m_sdskv_info.m_db_id,
@@ -282,7 +304,10 @@ class flamestore_mochi_backend : public flamestore_backend {
                         key.size(),
                         (void*)&value,
                         &vsize);
-                if(ret != SDSKV_SUCCESS) return false;
+                if(ret != SDSKV_SUCCESS) {
+                    m_logger->trace("Getting value failed (return code {})", ret);
+                    return false;
+                }
                 return true;
             };
 
@@ -309,6 +334,7 @@ class flamestore_mochi_backend : public flamestore_backend {
          * If not found, it tries to reload the model from the database.
          */
         inline model_t* _find_model(const std::string& model_name) {
+            m_logger->trace("Trying to find model {}", model_name);
             m_models_rwlock.wrlock();
             auto it = m_models.find(model_name);
             if(it == m_models.end()) {
@@ -432,14 +458,20 @@ class flamestore_mochi_backend : public flamestore_backend {
         flamestore_mochi_backend(const flamestore_server_context& ctx, const flamestore_backend::config_type& config)
         : m_engine(ctx.m_engine)
         , m_logger(ctx.m_logger) {
-            std::string config_file;
+            std::string json_config;
             auto it = config.find("config");
             if(it != config.end()) {
-                config_file  = it->second;
+                json_config  = it->second;
             } else {
-                throw std::runtime_error("Config file not provided to Mochi backend");
+                m_logger->critical("Configuration not provided to Mochi backend");
+                throw std::runtime_error("Configuration not provided to Mochi backend");
             }
-            _configure_backend(config_file);
+            try {
+                _configure_backend(json_config);
+            } catch(const std::runtime_error& e) {
+                m_logger->critical("Configuration failed: {}", std::string(e.what()));
+                throw;
+            }
         }
 
         flamestore_mochi_backend(const flamestore_backend&)            = delete;

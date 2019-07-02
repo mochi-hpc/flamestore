@@ -60,15 +60,18 @@ flamestore_op_module = Extension('_flamestore_operations',
                             '-D_GLIBCXX_USE_CXX14_ABI=0'],
         depends=[])
 
-flamestore_server_module_libraries    = thallium['libraries']       \
-                                      + bake_client['libraries']    \
-                                      + sdskv_client['libraries']
-flamestore_server_module_library_dirs = thallium['library_dirs']    \
-                                      + bake_client['library_dirs'] \
-                                      + sdskv_client['libraries']
-flamestore_server_module_include_dirs = thallium['include_dirs']    \
-                                      + bake_client['include_dirs'] \
-                                      + sdskv_client['libraries']   \
+flamestore_server_module_libraries    = thallium['libraries']        \
+                                      + bake_client['libraries']     \
+                                      + sdskv_client['libraries']    \
+                                      + jsoncpp['libraries']
+flamestore_server_module_library_dirs = thallium['library_dirs']     \
+                                      + bake_client['library_dirs']  \
+                                      + sdskv_client['library_dirs'] \
+                                      + jsoncpp['library_dirs']
+flamestore_server_module_include_dirs = thallium['include_dirs']     \
+                                      + bake_client['include_dirs']  \
+                                      + sdskv_client['include_dirs'] \
+                                      + jsoncpp['include_dirs']      \
                                       + ['.']
 flamestore_server_module = Extension('_flamestore_server',
         ['flamestore/src/server.cpp',
