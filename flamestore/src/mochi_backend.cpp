@@ -49,6 +49,13 @@ class flamestore_mochi_backend : public flamestore_backend {
             sdskv_client_t          m_client = SDSKV_CLIENT_NULL;
             sdskv_provider_handle_t m_ph     = SDSKV_PROVIDER_HANDLE_NULL;
             sdskv_database_id_t     m_db_id;
+
+            ~sdskv_info() {
+                if(m_ph != SDSKV_PROVIDER_HANDLE_NULL)
+                    sdskv_provider_handle_release(m_ph);
+                if(m_client != SDSKV_CLIENT_NULL)
+                    sdskv_client_finalize(m_client);
+            }
         };
 
         /**
@@ -63,8 +70,15 @@ class flamestore_mochi_backend : public flamestore_backend {
          * Encapsulation of BAKE information.
          */
         struct bake_info {
-            bake_client_t             m_client = BAKE_CLIENT_NULL;
+            bake_client_t                 m_client = BAKE_CLIENT_NULL;
             std::vector<bake_target_info> m_targets;
+
+            ~bake_info() {
+                for(auto& tgt_info : m_targets) {
+                    bake_provider_handle_release(tgt_info.m_ph);
+                }
+                bake_client_finalize(m_client);
+            }
         };
 
     public:
@@ -184,13 +198,13 @@ class flamestore_mochi_backend : public flamestore_backend {
                 throw std::runtime_error("sdskv_open failed");
             }
             // initialize the bake info
-            m_logger->trace("Creating BAKE client");
+            m_logger->trace("Creating Bake client");
             ret = bake_client_init(mid, &(m_bake_info.m_client));
             if(ret != BAKE_SUCCESS) {
                 _cleanup();
                 throw std::runtime_error("bake_client_init failed");
             }
-            m_logger->trace("Creating BAKE {} providers", bake.size());
+            m_logger->trace("Creating {} Bake providers", bake.size());
             std::unordered_map<std::string, bake_provider_handle_t> bake_providers;
             m_bake_info.m_targets.reserve(bake.size());
             for(unsigned int i = 0; i < bake.size(); i++) {
@@ -245,10 +259,10 @@ class flamestore_mochi_backend : public flamestore_backend {
         inline model_t* _reload_model_from_database(const std::string& model_name) {
             m_logger->trace("Reloading model {} from database", model_name);
             std::string model_config_key     = model_name + "/model/config";
-            std::string optimizer_config_key = model_name + "/optimizer/config";
             std::string model_region_key     = model_name + "/model/data";
-            std::string optimizer_region_key = model_name + "/optimizer/data";
             std::string model_sig_key        = model_name + "/model/sig";
+            std::string optimizer_config_key = model_name + "/optimizer/config";
+            std::string optimizer_region_key = model_name + "/optimizer/data";
             std::string optimizer_sig_key    = model_name + "/optimizer/sig";
 
             auto model = std::make_unique<model_t>();
@@ -267,7 +281,7 @@ class flamestore_mochi_backend : public flamestore_backend {
                     m_logger->trace("Lookup failed (return code {})", ret);
                     return false;
                 }
-                value.resize(vsize+1,'\0');
+                value.resize(vsize,'\0');
                 m_logger->trace("Getting value for key {}", key);
                 ret = sdskv_get(
                         m_sdskv_info.m_ph,
@@ -324,6 +338,12 @@ class flamestore_mochi_backend : public flamestore_backend {
             // try loading the optimizer region info
             if(!get_keyval_auto(optimizer_region_key, model->m_impl.m_optimizer_region)) return nullptr;
             
+            unsigned i = std::hash<std::string>()(model_name) % m_bake_info.m_targets.size();
+            auto& tgt_info = m_bake_info.m_targets[i];
+            model->m_impl.m_ph = tgt_info.m_ph;
+
+            m_logger->trace("Successfully reloaded model from database");
+
             m_models[model_name] = std::move(model);
 
             return result;
@@ -360,9 +380,11 @@ class flamestore_mochi_backend : public flamestore_backend {
                 std::size_t model_data_size,
                 std::size_t optimizer_data_size,
                 const std::string& model_signature,
-                const std::string& optimizer_signature)
+                const std::string& optimizer_signature,
+                bool& created)
         {
             int ret;
+            created = false;
             m_models_rwlock.wrlock();
             model_t* model = nullptr;
             auto it = m_models.find(model_name);
@@ -383,16 +405,16 @@ class flamestore_mochi_backend : public flamestore_backend {
             // model is not in cache nor in database, create it
             auto model_uptr = std::make_unique<model_t>();
             model = model_uptr.get();
-            // copy the base information
-            model->m_name                = model_name;
-            model->m_model_config        = model_config;
-            model->m_optimizer_config    = optimizer_config;
-            model->m_model_signature     = model_signature;
-            model->m_optimizer_signature = optimizer_signature;
             // compute the index of the bake target that will store the model
             unsigned i = std::hash<std::string>()(model_name) % m_bake_info.m_targets.size();
             auto& tgt_info = m_bake_info.m_targets[i];
-            model->m_impl.m_ph                      = tgt_info.m_ph;
+            model->m_impl.m_ph = tgt_info.m_ph;
+            // copy the base information
+            model->m_name                           = model_name;
+            model->m_model_config                   = model_config;
+            model->m_optimizer_config               = optimizer_config;
+            model->m_model_signature                = model_signature;
+            model->m_optimizer_signature            = optimizer_signature;
             model->m_impl.m_model_region.m_tid      = tgt_info.m_target;
             model->m_impl.m_model_region.m_size     = model_data_size;
             model->m_impl.m_optimizer_region.m_tid  = tgt_info.m_target;
@@ -403,11 +425,19 @@ class flamestore_mochi_backend : public flamestore_backend {
 
             // TODO: in the two calls bellow if something goes wrong we should cleanup the mess
             // create a region with the required size for the model data
+            m_logger->trace("Calling bake_create with size={}", model_data_size);
             ret = bake_create(ph, tid, model_data_size, &(model->m_impl.m_model_region.m_rid));
-            if(ret != BAKE_SUCCESS) return nullptr;
+            if(ret != BAKE_SUCCESS) {
+                m_logger->error("bake_create returned {}", ret);
+                return nullptr;
+            }
             // create a region with the required size for the optimizer data
+            m_logger->trace("Calling bake_create with size={}", optimizer_data_size);
             ret = bake_create(ph, tid, optimizer_data_size, &(model->m_impl.m_optimizer_region.m_rid));
-            if(ret != BAKE_SUCCESS) return nullptr;
+            if(ret != BAKE_SUCCESS) {
+                m_logger->error("bake_create returned {}", ret);
+                return nullptr;
+            }
 
             auto put_key_str = [this](const std::string& key, const std::string& value) {
                 int ret = sdskv_put(
@@ -416,9 +446,12 @@ class flamestore_mochi_backend : public flamestore_backend {
                         (const void*)key.c_str(),
                         key.size(),
                         (const void*)value.c_str(),
-                        value.size());
+                        value.size()+1);
                 if(ret == SDSKV_SUCCESS) return true;
-                else return false;
+                else {
+                    m_logger->error("sdskv_put for key {} returned {}", key, ret);
+                    return false;
+                }
             };
 
             auto put_key_auto = [this](const std::string& key, const auto& value) {
@@ -430,7 +463,10 @@ class flamestore_mochi_backend : public flamestore_backend {
                         (const void*)&value,
                         sizeof(value));
                 if(ret == SDSKV_SUCCESS) return true;
-                else return false;
+                else {
+                    m_logger->error("sdskv_put for key {} returned {}", key, ret);
+                    return false;
+                }
             };
 
             std::string model_config_key     = model_name + "/model/config";
@@ -448,8 +484,11 @@ class flamestore_mochi_backend : public flamestore_backend {
             if(!put_key_auto(optimizer_region_key, model->m_impl.m_optimizer_region)) return nullptr;
             // TODO technically if something goes wrong we should clean up the mess
 
-            m_models.emplace(model_name, std::move(model));
+            m_logger->trace("Model creation was successful, placing model in map");
+            m_models.emplace(model_name, std::move(model_uptr));
             m_models_rwlock.unlock();
+
+            created = true;
             return model;
         }
 
@@ -482,6 +521,7 @@ class flamestore_mochi_backend : public flamestore_backend {
 
         virtual void register_model(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_config,
                 const std::string& optimizer_config,
@@ -492,32 +532,38 @@ class flamestore_mochi_backend : public flamestore_backend {
 
         virtual void get_model_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) override;
 
         virtual void get_optimizer_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) override;
 
         virtual void write_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) override;
 
         virtual void read_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) override;
 
         virtual void write_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) override;
 
         virtual void read_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) override;
@@ -527,6 +573,7 @@ REGISTER_FLAMESTORE_BACKEND("mochi",flamestore_mochi_backend);
         
 void flamestore_mochi_backend::register_model(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_config,
         const std::string& optimizer_config,
@@ -535,215 +582,112 @@ void flamestore_mochi_backend::register_model(
         const std::string& model_signature,
         const std::string& optimizer_signature)
 {
-#if 0
     bool created = false;
-    auto model = _find_or_create_model(model_name, created);
+    _find_or_create_model(model_name,
+                          model_config,
+                          optimizer_config,
+                          model_data_size,
+                          optimizer_data_size,
+                          model_signature,
+                          optimizer_signature,
+                          created);
     if(not created) {
-        m_logger->error("Model \"{}\" already exists", model_name);
+        m_logger->error("Model \"{}\" already exists or could not be created", model_name);
         req.respond(flamestore_status(
-                    TSRA_EEXISTS,
-                    "A model with the same name is already registered"));
+                    FLAMESTORE_EEXISTS,
+                    "Model already exists or could not be created"));
         m_logger->trace("Leaving flamestore_mochi_backend::register_model");
         return;
     }
 
-    lock_guard_t guard(model->m_mutex);
     req.respond(flamestore_status::OK());
-
-    m_logger->info("Registering model \"{}\"", model_name);
-
-    try {
-
-        model->m_model_config          = std::move(model_config);
-        model->m_optimizer_config      = std::move(optimizer_config);
-        model->m_model_signature       = std::move(model_signature);
-        model->m_optimizer_signature   = std::move(optimizer_signature);
-        model->m_impl.m_model_size     = model_data_size;
-        model->m_impl.m_optimizer_size = optimizer_data_size;
-
-        std::stringstream basedir;
-        basedir << m_path << "/" << model_name;
-        int status = mkdir(basedir.str().c_str(), 0700);
-        if(status == -1) {
-            req.respond(flamestore_status(TSRA_EMKDIR, "Could not create directory for model"));
-            m_logger->error("Coult not create directory for model \"{}\"", model_name);
-            return;
-        }
-
-        // write model config and signature
-        {
-            std::string filename = basedir.str() + "/model.json";
-            std::ofstream ofs(filename.c_str(), std::ofstream::out);
-            ofs << model->m_model_config;
-
-            std::string filename_sig = basedir.str() + "/model.sig";
-            std::ofstream ofs_sig(filename_sig.c_str(), std::ofstream::out);
-            ofs_sig << model->m_model_signature;
-        }
-
-        // write optimizer config and signature
-        {
-            std::string filename = basedir.str() + "/optimizer.json";
-            std::ofstream ofs(filename.c_str(), std::ofstream::out);
-            ofs << model->m_optimizer_config;
-
-            std::string filename_sig = basedir.str() + "/optimizer.sig";
-            std::ofstream ofs_sig(filename_sig.c_str(), std::ofstream::out);
-            ofs_sig << model->m_optimizer_signature;
-        }
-
-        // create and mmap model data
-        {
-            std::string filename = basedir.str() + "/model.bin";
-            int fd = open(filename.c_str(), O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
-            if(fd == -1)
-            {
-                m_logger->error("Error opening model.bin for model \"{}\"", model_name);
-                req.respond(flamestore_status(TSRA_EIO, "Could not create model.bin"));
-                // XXX cleanup
-                return;
-            }
-            int status = ftruncate(fd, model_data_size);
-            if(status != 0)
-            {
-                m_logger->error("Error truncating model.bin for model \"{}\"", model_name);
-                req.respond(flamestore_status(TSRA_EIO, "Could not resize model.bin"));
-                // XXX cleanup
-                return;
-            }
-            model->m_impl.m_model_data
-                = mmap(0, model_data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-            // XXX check mmap worked
-            close(fd);
-        }
-
-        // create and mmap optimizer data
-        if(optimizer_data_size != 0) {
-            std::string filename = basedir.str() + "/optimizer.bin";
-            int fd = open(filename.c_str(), O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
-            if(fd == -1)
-            {
-                m_logger->error("Error opening optimizer.bin for model \"{}\"", model_name);
-                req.respond(flamestore_status(TSRA_EIO, "Could not create optimizer.bin"));
-                // XXX cleanup
-                return;
-            }
-            int status = ftruncate(fd, optimizer_data_size);
-            if(status != 0)
-            {
-                m_logger->error("Error truncating optimizer.bin for model \"{}\"", model_name);
-                req.respond(flamestore_status(TSRA_EIO, "Could not resize optimizer.bin"));
-                // XXX cleanup
-                return;
-            }
-            model->m_impl.m_optimizer_data
-                = mmap(0, optimizer_data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-            // XXX check mmap worked
-            close(fd);
-        }
-
-        if(model->m_impl.m_model_size != 0) {
-            std::vector<std::pair<void*, size_t>> model_data_ptr(1);
-            model_data_ptr[0].first  = (void*)(model->m_impl.m_model_data);
-            model_data_ptr[0].second = model->m_impl.m_model_size;
-            model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
-        }
-
-        if(model->m_impl.m_optimizer_size != 0) {
-            std::vector<std::pair<void*, size_t>> optimizer_data_ptr(1);
-            optimizer_data_ptr[0].first  = (void*)(model->m_impl.m_optimizer_data);
-            optimizer_data_ptr[0].second = model->m_impl.m_optimizer_size;
-            model->m_impl.m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
-        }
-
-    } catch(const tl::exception& e) {
-        m_logger->critical("Exception caught in flamestore_mochi_backend::register_model: {}", e.what());
-    }
-#endif
+    m_logger->trace("Leaving flamestore_mochi_backend::register_model");
 }
 
 void flamestore_mochi_backend::get_model_config(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name)
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_mochi_backend::get_model_config");
         return;
     }
     m_logger->info("Getting model config for model \"{}\"", model_name);
     req.respond(flamestore_status::OK(model->m_model_config));
-#endif
 }
 
 void flamestore_mochi_backend::get_optimizer_config(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name)
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_mochi_backend::get_optimizer_config");
         return;
     }
     m_logger->info("Getting optimizer config for model \"{}\"", model_name);
     req.respond(flamestore_status::OK(model->m_optimizer_config));
-#endif
 }
 
 void flamestore_mochi_backend::write_model_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
         const tl::bulk& remote_bulk)
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
         return;
     }
-    m_logger->info("Pulling data from model \"{}\"", model_name);
     lock_guard_t guard(model->m_mutex);
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when writing model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
         return;
     }
-    model->m_impl.m_model_data_bulk << remote_bulk.on(req.get_endpoint());
+    bake_provider_handle_t ph = model->m_impl.m_ph;
+    bake_region_id_t& rid     = model->m_impl.m_model_region.m_rid;
+    uint64_t size             = model->m_impl.m_model_region.m_size;
+    int ret = bake_proxy_write(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size);
+    if(ret != BAKE_SUCCESS) {
+        m_logger->error("In flamestore_mochi_backend::write_model_data, bake_proxy_write returned {}", ret);
+    }
     req.respond(flamestore_status::OK());
-    msync(model->m_impl.m_model_data, model->m_impl.m_model_size, MS_SYNC);
-#endif
+    m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
 }
 
 void flamestore_mochi_backend::read_model_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
         const tl::bulk& remote_bulk)
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         return;
     }
@@ -752,29 +696,45 @@ void flamestore_mochi_backend::read_model_data(
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when reading model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_mochi_backend::read_model_data");
         return;
     }
-    m_logger->info("Pushing data to model \"{}\"", model_name);
-    model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
+    bake_provider_handle_t ph = model->m_impl.m_ph;
+    bake_region_id_t& rid     = model->m_impl.m_model_region.m_rid;
+    uint64_t size             = model->m_impl.m_model_region.m_size;
+    uint64_t size_read        = 0;
+    int ret = bake_proxy_read(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size, &size_read);
+    if(ret != BAKE_SUCCESS) {
+        m_logger->error("In flamestore_mochi_backend::read_model_data, bake_proxy_read returned {}", ret);
+        req.respond(flamestore_status(
+                        FLAMESTORE_EIO, "bake_proxy_read failed"));
+        return;
+    }
+    if(size_read != size) {
+        m_logger->error("In flamestore_mochi_backend::read_model_data, bake_proxy_read read {} instead of {}",
+                size_read, size);
+        req.respond(flamestore_status(
+                    FLAMESTORE_EIO, "bake_proxy_read failed"));
+        return;
+    }
     req.respond(flamestore_status::OK());
-#endif
+    m_logger->trace("Leaving flamestore_mochi_backend::read_model_data");
 }
 
 void flamestore_mochi_backend::write_optimizer_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& optimizer_signature,
         tl::bulk& remote_bulk) 
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
         return;
@@ -784,30 +744,34 @@ void flamestore_mochi_backend::write_optimizer_data(
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when writing optimizer for model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
         return;
     }
-    m_logger->info("Pulling data from model optimizer \"{}\"", model_name);
-    model->m_impl.m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
+    bake_provider_handle_t ph = model->m_impl.m_ph;
+    bake_region_id_t& rid     = model->m_impl.m_optimizer_region.m_rid;
+    uint64_t size             = model->m_impl.m_optimizer_region.m_size;
+    int ret = bake_proxy_write(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size);
+    if(ret != BAKE_SUCCESS) {
+        m_logger->error("In flamestore_mochi_backend::write_optimizer_data, bake_proxy_write returned {}", ret);
+    }
     req.respond(flamestore_status::OK());
-    msync(model->m_impl.m_optimizer_data, model->m_impl.m_optimizer_size, MS_SYNC);
-#endif
+    m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
 }
 
 void flamestore_mochi_backend::read_optimizer_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& optimizer_signature,
         tl::bulk& remote_bulk) 
 {
-#if 0
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
         return;
@@ -817,13 +781,31 @@ void flamestore_mochi_backend::read_optimizer_data(
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when reading optimizer for model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
         return;
     }
-    m_logger->info("Pushing data to model optimizer \"{}\"", model_name);
-    model->m_impl.m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
+    bake_provider_handle_t ph = model->m_impl.m_ph;
+    bake_region_id_t& rid     = model->m_impl.m_optimizer_region.m_rid;
+    uint64_t size             = model->m_impl.m_optimizer_region.m_size;
+    uint64_t size_read        = 0;
+    int ret = bake_proxy_read(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size, &size_read);
+    if(ret != BAKE_SUCCESS) {
+        m_logger->error("In flamestore_mochi_backend::read_optimizer_data, bake_proxy_read returned {}", ret);
+        req.respond(flamestore_status(
+                        FLAMESTORE_EIO, "bake_proxy_read failed"));
+        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        return;
+    }
+    if(size_read != size) {
+        m_logger->error("In flamestore_mochi_backend::read_optimizer_data, bake_proxy_read read {} instead of {}",
+                size_read, size);
+        req.respond(flamestore_status(
+                    FLAMESTORE_EIO, "bake_proxy_read failed"));
+        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        return;
+    }
     req.respond(flamestore_status::OK());
-#endif
+    m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
 }

@@ -40,13 +40,13 @@ struct flamestore_status {
 };
 
 enum flamestore_status_code {
-    TSRA_OK         = 0,
-    TSRA_EEXISTS    = 1,
-    TSRA_ENOEXISTS  = 2,
-    TSRA_ESIGNATURE = 3,
-    TSRA_EMKDIR     = 4,
-    TSRA_EIO        = 5,
-    TSRA_EOTHER
+    FLAMESTORE_OK         = 0,
+    FLAMESTORE_EEXISTS    = 1,
+    FLAMESTORE_ENOEXISTS  = 2,
+    FLAMESTORE_ESIGNATURE = 3,
+    FLAMESTORE_EMKDIR     = 4,
+    FLAMESTORE_EIO        = 5,
+    FLAMESTORE_EOTHER
 };
 
 #endif

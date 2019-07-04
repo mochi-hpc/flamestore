@@ -94,6 +94,7 @@ class flamestore_memory_backend : public flamestore_backend {
 
         virtual void register_model(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_config,
                 const std::string& optimizer_config,
@@ -104,32 +105,38 @@ class flamestore_memory_backend : public flamestore_backend {
 
         virtual void get_model_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) override;
 
         virtual void get_optimizer_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) override;
 
         virtual void write_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) override;
 
         virtual void read_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) override;
 
         virtual void write_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) override;
 
         virtual void read_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) override;
@@ -139,6 +146,7 @@ REGISTER_FLAMESTORE_BACKEND("memory",flamestore_memory_backend);
         
 void flamestore_memory_backend::register_model(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_config,
         const std::string& optimizer_config,
@@ -152,7 +160,7 @@ void flamestore_memory_backend::register_model(
     if(not created) {
         m_logger->error("Model \"{}\" already exists", model_name);
         req.respond(flamestore_status(
-                    TSRA_EEXISTS,
+                    FLAMESTORE_EEXISTS,
                     "A model with the same name is already registered"));
         m_logger->trace("Leaving flamestore_provider::on_register_model");
         return;
@@ -193,13 +201,14 @@ void flamestore_memory_backend::register_model(
 
 void flamestore_memory_backend::get_model_config(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name) 
 {
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_provider::on_get_model_config");
         return;
@@ -210,13 +219,14 @@ void flamestore_memory_backend::get_model_config(
 
 void flamestore_memory_backend::get_optimizer_config(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name) 
 {
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_provider::on_get_optimizer_config");
         return;
@@ -227,6 +237,7 @@ void flamestore_memory_backend::get_optimizer_config(
 
 void flamestore_memory_backend::write_model_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
         const tl::bulk& remote_bulk)
@@ -235,7 +246,7 @@ void flamestore_memory_backend::write_model_data(
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_provider::on_write_model_data");
         return;
@@ -245,7 +256,7 @@ void flamestore_memory_backend::write_model_data(
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when writing model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_provider::on_write_model_data");
         return;
@@ -256,6 +267,7 @@ void flamestore_memory_backend::write_model_data(
 
 void flamestore_memory_backend::read_model_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
         const tl::bulk& remote_bulk)
@@ -264,7 +276,7 @@ void flamestore_memory_backend::read_model_data(
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         return;
     }
@@ -273,7 +285,7 @@ void flamestore_memory_backend::read_model_data(
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when reading model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_provider::on_read_model_data");
         return;
@@ -285,6 +297,7 @@ void flamestore_memory_backend::read_model_data(
 
 void flamestore_memory_backend::write_optimizer_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& optimizer_signature,
         tl::bulk& remote_bulk) 
@@ -293,7 +306,7 @@ void flamestore_memory_backend::write_optimizer_data(
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
         return;
@@ -303,7 +316,7 @@ void flamestore_memory_backend::write_optimizer_data(
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when writing optimizer for model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
         return;
@@ -315,6 +328,7 @@ void flamestore_memory_backend::write_optimizer_data(
 
 void flamestore_memory_backend::read_optimizer_data(
         const tl::request& req,
+        const std::string& client_addr,
         const std::string& model_name,
         const std::string& optimizer_signature,
         tl::bulk& remote_bulk) 
@@ -323,7 +337,7 @@ void flamestore_memory_backend::read_optimizer_data(
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
         req.respond(flamestore_status(
-                    TSRA_ENOEXISTS,
+                    FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
         return;
@@ -333,7 +347,7 @@ void flamestore_memory_backend::read_optimizer_data(
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when reading optimizer for model \"{}\"", model_name);
         req.respond(flamestore_status(
-                    TSRA_ESIGNATURE,
+                    FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
         m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
         return;

@@ -51,6 +51,7 @@ class flamestore_client {
     private:
 
     std::shared_ptr<tl::engine> m_engine;
+    std::string                 m_addr_str; // address of this client
     tl::remote_procedure m_rpc_register_model;
     tl::remote_procedure m_rpc_get_model_config;
     tl::remote_procedure m_rpc_get_optimizer_config;
@@ -66,7 +67,8 @@ class flamestore_client {
     using return_status = std::pair<int32_t, std::string>;
 
     flamestore_client(pymargo_instance_id mid)
-    : m_engine(std::make_shared<tl::engine>(CAPSULE2MID(mid))) 
+    : m_engine(std::make_shared<tl::engine>(CAPSULE2MID(mid)))
+    , m_addr_str(m_engine->self())
     , m_rpc_register_model(m_engine->define("flamestore_register_model"))
     , m_rpc_get_model_config(m_engine->define("flamestore_get_model_config"))
     , m_rpc_get_optimizer_config(m_engine->define("flamestore_get_optimizer_config"))

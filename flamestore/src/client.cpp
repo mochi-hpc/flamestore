@@ -25,6 +25,7 @@ flamestore_client::return_status flamestore_client::register_model(
 
     flamestore_status status = m_rpc_register_model
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             model_config,
             optimizer_config,
@@ -41,7 +42,7 @@ flamestore_client::return_status flamestore_client::get_model_config(
         const std::string& model_name) const {
 
     flamestore_status status = m_rpc_get_model_config
-        .on(ph.m_provider_handle)(model_name);
+        .on(ph.m_provider_handle)(m_addr_str, model_name);
 
     return status.move_to_pair();
 }
@@ -51,7 +52,7 @@ flamestore_client::return_status flamestore_client::get_optimizer_config(
         const std::string& model_name) const {
 
     flamestore_status status = m_rpc_get_optimizer_config
-        .on(ph.m_provider_handle)(model_name);
+        .on(ph.m_provider_handle)(m_addr_str, model_name);
 
     return status.move_to_pair();
 }
@@ -64,6 +65,7 @@ flamestore_client::return_status flamestore_client::write_model_data(
 
     flamestore_status status = m_rpc_write_model_data
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             model_signature,
             local_bulk);
@@ -79,6 +81,7 @@ flamestore_client::return_status flamestore_client::read_model_data(
 
     flamestore_status status = m_rpc_read_model_data
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             model_signature,
             local_bulk);
@@ -94,6 +97,7 @@ flamestore_client::return_status flamestore_client::write_optimizer_data(
 
     flamestore_status status = m_rpc_write_optimizer_data
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             optimizer_signature,
             local_bulk);
@@ -109,6 +113,7 @@ flamestore_client::return_status flamestore_client::read_optimizer_data(
     
     flamestore_status status = m_rpc_read_optimizer_data
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             optimizer_signature,
             local_bulk);
@@ -124,6 +129,7 @@ tl::async_response flamestore_client::async_write_model_data(
 
     return m_rpc_write_model_data
         .on(ph.m_provider_handle).async(
+            m_addr_str,
             model_name,
             model_signature,
             local_bulk);
@@ -137,6 +143,7 @@ tl::async_response flamestore_client::async_read_model_data(
 
     return m_rpc_read_model_data
         .on(ph.m_provider_handle).async(
+            m_addr_str,
             model_name,
             model_signature,
             local_bulk);
@@ -151,6 +158,7 @@ tl::async_response flamestore_client::async_write_optimizer_data(
 
     return m_rpc_write_optimizer_data
         .on(ph.m_provider_handle).async(
+            m_addr_str,
             model_name,
             optimizer_signature,
             local_bulk);
@@ -164,6 +172,7 @@ tl::async_response flamestore_client::async_read_optimizer_data(
 
     return m_rpc_read_optimizer_data
         .on(ph.m_provider_handle).async(
+            m_addr_str,
             model_name,
             optimizer_signature,
             local_bulk);
@@ -178,6 +187,7 @@ flamestore_client::return_status flamestore_client::start_sync_model(
 
     flamestore_status status = m_rpc_start_sync_model
         .on(ph.m_provider_handle)(
+            m_addr_str,
             model_name,
             model_signature,
             optimizer_signature,
@@ -191,7 +201,7 @@ flamestore_client::return_status flamestore_client::stop_sync_model(
         const std::string& model_name) const {
 
     flamestore_status status = m_rpc_stop_sync_model
-        .on(ph.m_provider_handle)(model_name);
+        .on(ph.m_provider_handle)(m_addr_str, model_name);
 
     return status.move_to_pair();
 }

@@ -30,10 +30,10 @@ def train(engine, provider_addr, provider_id):
     print('==> Starting model training')
     lenet5.train_model(model, dataset, 
             batch_size=128, epochs=1,
-            output_name=None, verbose=0,
+            output_name=None, verbose=1,
             callbacks=[callback])
     print('==> Evaluating the model')
-    score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=0)
+    score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=1)
     print('==> Score is '+str(score))
 
 def evaluate(engine, provider_addr, provider_id):
@@ -51,16 +51,16 @@ def evaluate(engine, provider_addr, provider_id):
     print('==> Compiling model')
     lenet5.build_model(model, optimizer=optimizer)
     print('==> Starting model evaluation')
-    score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=0)
+    score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=1)
     print('==> Score is '+str(score))
     print('=========== SHUTTING DOWN ============')
     provider.shutdown()
 
 if __name__ == '__main__':
     log.setup_logging(level=logging.DEBUG)
-    pr_addr = 'ofi+sockets://127.0.0.1:12345'
+    pr_addr = sys.argv[1] # 'ofi+sockets://127.0.0.1:12345'
     pr_id   = 0
     commands = { 'train': train, 'evaluate': evaluate }
     with Engine('tcp', use_progress_thread=True, mode=pymargo.client) as engine:
-        for cmd in sys.argv[1:]:
+        for cmd in sys.argv[2:]:
             commands[cmd](engine, pr_addr, pr_id)

@@ -40,7 +40,7 @@ class flamestore_backend {
         flamestore_backend(flamestore_backend&&)                 = delete;
         flamestore_backend& operator=(const flamestore_backend&) = delete;
         flamestore_backend& operator=(flamestore_backend&&)      = delete;
-        ~flamestore_backend()                              = default;
+        virtual ~flamestore_backend()                            = default;
 
         static std::unique_ptr<flamestore_backend> create(
                 const std::string& name,
@@ -57,6 +57,7 @@ class flamestore_backend {
 
         virtual void register_model(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_config,
                 const std::string& optimizer_config,
@@ -67,32 +68,38 @@ class flamestore_backend {
 
         virtual void get_model_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) = 0;
 
         virtual void get_optimizer_config(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name) = 0;
 
         virtual void write_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) = 0;
 
         virtual void read_model_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk) = 0;
 
         virtual void write_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) = 0;
 
         virtual void read_optimizer_data(
                 const tl::request& req,
+                const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& optimizer_signature,
                 tl::bulk& remote_bulk) = 0;

@@ -76,6 +76,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_register_model(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             std::string& model_config,
             std::string& optimizer_config,
@@ -87,6 +88,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
         m_logger->trace("Entering flamestore_provider::on_register_model for model \"{}\"", model_name);
         m_backend->register_model(
             req,
+            client_addr,
             model_name,
             model_config,
             optimizer_config,
@@ -106,9 +108,10 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_get_model_config(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name) {
         m_logger->trace("Entering flamestore_provider::on_get_model_config for model \"{}\"", model_name);
-        m_backend->get_model_config(req, model_name);
+        m_backend->get_model_config(req, client_addr, model_name);
         m_logger->trace("Leaving flamestore_provider::on_get_model_config");
     }
 
@@ -121,9 +124,10 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_get_optimizer_config(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name) {
         m_logger->trace("Entering flamestore_provider::on_get_optimizer_config for model \"{}\"", model_name);
-        m_backend->get_optimizer_config(req, model_name);
+        m_backend->get_optimizer_config(req, client_addr, model_name);
         m_logger->trace("Leaving flamestore_provider::on_get_optimizer_config");
     }
 
@@ -136,11 +140,12 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_write_model_data(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             const std::string& model_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_write_model_data for model \"{}\"", model_name);
-        m_backend->write_model_data(req, model_name, model_signature, remote_bulk);
+        m_backend->write_model_data(req, client_addr, model_name, model_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_write_model_data");
     }
 
@@ -152,11 +157,12 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_read_model_data(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             const std::string& model_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_read_model_data for model \"{}\"", model_name);
-        m_backend->read_model_data(req, model_name, model_signature, remote_bulk);
+        m_backend->read_model_data(req, client_addr, model_name, model_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_read_model_data");
     }
 
@@ -169,11 +175,12 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_write_optimizer_data(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             const std::string& optimizer_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_write_optimizer_data for model \"{}\"", model_name);
-        m_backend->write_optimizer_data(req, model_name, optimizer_signature, remote_bulk);
+        m_backend->write_optimizer_data(req, client_addr, model_name, optimizer_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
     }
 
@@ -185,11 +192,12 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_read_optimizer_data(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             const std::string& optimizer_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_read_optimizer_data for model \"{}\"", model_name);
-        m_backend->read_optimizer_data(req, model_name, optimizer_signature, remote_bulk);
+        m_backend->read_optimizer_data(req, client_addr, model_name, optimizer_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
     }
 
@@ -201,6 +209,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_start_sync_model(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name,
             const std::string& model_signature,
             const std::string& optimizer_signature) {
@@ -216,6 +225,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
      */
     void on_stop_sync_model(
             const tl::request& req,
+            const std::string& client_addr,
             const std::string& model_name) {
         // TODO
         req.respond(flamestore_status::OK());
@@ -265,6 +275,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
         get_engine().on_finalize([this]() {
                     m_logger->trace("Calling finalize callback");
                     m_backend.reset();
+                    m_logger->trace("Done destroying backend");
                 });
         m_logger->trace("Done initializing provider");
     }
