@@ -58,8 +58,13 @@ def evaluate(engine, provider_addr, provider_id):
 
 if __name__ == '__main__':
     log.setup_logging(level=logging.DEBUG)
-    pr_addr = sys.argv[1] # 'ofi+sockets://127.0.0.1:12345'
-    pr_id   = 0
+    if(len(sys.argv) < 2):
+        print("Usage: python client-lenet5.py <connection.txt> [train, evaluate, ...")
+        sys.exit(-1)
+    connection_file = sys.argv[1]
+    with open(connection_file) as f:
+        pr_addr = f.read()
+    pr_id = 0
     commands = { 'train': train, 'evaluate': evaluate }
     with Engine('tcp', use_progress_thread=True, mode=pymargo.client) as engine:
         for cmd in sys.argv[2:]:
