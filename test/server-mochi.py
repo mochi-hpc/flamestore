@@ -11,6 +11,10 @@ import pysdskv.server
 from pysdskv.server import SDSKVProvider
 from flamestore.server import Provider as BackendProvider
 
+def create_connection_file(engine, filename):
+    with open(filename,'w+') as f:
+        f.write(str(engine.addr()))
+
 def make_and_share_backend_config(comm, engine, config, bake_targets=[]):
     this_addr = str(engine.addr())
     if(comm.Get_rank() == 0):
@@ -57,7 +61,7 @@ def init_storage_provider(comm, engine, config):
     bake_target = bake_provider.add_storage_target(bake_target_path)
     return bake_provider, bake_target
 
-def run_metadata_providers(comm, engine, config):
+def run_metadata_providers(comm, engine, config, connection_file):
     loglevel = config.get('loglevel', 1)
     sdskv_provider_id = config['sdskv'].get('provider_id', 0)
     sdskv_provider = SDSKVProvider(engine, sdskv_provider_id)
@@ -76,6 +80,7 @@ def run_metadata_providers(comm, engine, config):
     backend_config = make_and_share_backend_config(comm, engine, config, bake_targets)
     backend_provider = BackendProvider(engine, backend_provider_id, 
             config=backend_config, loglevel=loglevel, backend=backend)
+    create_connection_file(engine, connection_file)
     engine.wait_for_finalize()
 
 def run_storage_providers(comm, engine, config):
@@ -85,8 +90,8 @@ def run_storage_providers(comm, engine, config):
     engine.wait_for_finalize()
 
 if __name__ == '__main__':
-    if(len(sys.argv) != 2):
-        print('Usage: mpirun <mpiargs> python server.py <config.json> <connection.json>')
+    if(len(sys.argv) != 3):
+        print('Usage: mpirun <mpiargs> python server.py <config.json> <connection.txt>')
         sys.exit(-1)
     configfile = sys.argv[1]
     with open(configfile) as f:
@@ -99,6 +104,6 @@ if __name__ == '__main__':
     engine.enable_remote_shutdown()
     comm = MPI.COMM_WORLD
     if(comm.Get_rank() == 0):
-        run_metadata_providers(comm, engine, config)
+        run_metadata_providers(comm, engine, config, sys.argv[2])
     else:
         run_storage_providers(comm, engine, config)
