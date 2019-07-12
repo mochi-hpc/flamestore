@@ -14,7 +14,7 @@ import os
 import os.path
 import sys
 
-cxxflags = ['-std=c++14', '-g'],
+cxxflags = ['-std=c++14', '-g']
 cxxflags.append('-D_GLIBCXX_USE_CXX11_ABI=0')
 cxxflags.append('-D_GLIBCXX_USE_CXX14_ABI=0')
 
