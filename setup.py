@@ -3,7 +3,7 @@ from distutils.extension import Extension
 from distutils.sysconfig import get_config_vars
 from distutils.command.build_clib import build_clib
 from distutils.command.build_ext import build_ext
-theta = True
+theta = False
 if theta:
     tf = None
 else:
