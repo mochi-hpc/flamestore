@@ -8,6 +8,7 @@ from flamestore.client import Client
 from flamestore.callbacks import RemoteCheckpointCallback
 import lenet5
 import keras
+from keras import backend as K
 import logging
 from flamestore import log
 
@@ -35,6 +36,7 @@ def train(engine, provider_addr, provider_id):
     print('==> Evaluating the model')
     score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=1)
     print('==> Score is '+str(score))
+    K.clear_session()
 
 def evaluate(engine, provider_addr, provider_id):
     print('=========== EVALUATION PHASE =========')
@@ -55,6 +57,7 @@ def evaluate(engine, provider_addr, provider_id):
     print('==> Score is '+str(score))
     print('=========== SHUTTING DOWN ============')
     provider.shutdown()
+    K.clear_session()
 
 if __name__ == '__main__':
     log.setup_logging(level=logging.DEBUG)

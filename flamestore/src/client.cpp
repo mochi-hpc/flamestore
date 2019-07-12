@@ -9,8 +9,14 @@ flamestore_provider_handle flamestore_client::lookup(
         const std::string& address,
         uint16_t provider_id) const {
 
-    auto endpoint = m_engine->lookup(address);
-    return flamestore_provider_handle(m_engine, tl::provider_handle(endpoint, provider_id));    
+    auto it = m_endpoint_cache.find(address);
+    if(it != m_endpoint_cache.end()) {
+        return flamestore_provider_handle(m_engine, tl::provider_handle(it->second, provider_id));
+    } else {
+        auto endpoint = m_engine->lookup(address);
+        m_endpoint_cache[address] = endpoint;
+        return flamestore_provider_handle(m_engine, tl::provider_handle(endpoint, provider_id));
+    }
 }
 
 flamestore_client::return_status flamestore_client::register_model(

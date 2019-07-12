@@ -61,6 +61,7 @@ class flamestore_client {
     tl::remote_procedure m_rpc_read_optimizer_data;
     tl::remote_procedure m_rpc_start_sync_model;
     tl::remote_procedure m_rpc_stop_sync_model;
+    mutable std::unordered_map<std::string, tl::endpoint> m_endpoint_cache;
 
     public:
 

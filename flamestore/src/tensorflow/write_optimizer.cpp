@@ -30,8 +30,9 @@ private:
     
     std::string          m_model_name;
     std::string          m_optimizer_signature;
-    flamestore_client*         m_client;
-    flamestore_provider_handle m_provider_handle;
+    std::string          m_provider_addr;
+    int                  m_provider_id;
+    flamestore_client*   m_client;
 
     void validate_input(OpKernelContext* context) {}
 
@@ -43,11 +44,8 @@ public:
         std::string client_id;
         OP_REQUIRES_OK(context, context->GetAttr("client",              &client_id));
         m_client = flamestore_client::from_id(client_id);
-        std::string provider_addr;
-        OP_REQUIRES_OK(context, context->GetAttr("provider_addr",       &provider_addr));
-        int provider_id;
-        OP_REQUIRES_OK(context, context->GetAttr("provider_id",         &provider_id));
-        m_provider_handle = m_client->lookup(provider_addr, provider_id);
+        OP_REQUIRES_OK(context, context->GetAttr("provider_addr",       &m_provider_addr));
+        OP_REQUIRES_OK(context, context->GetAttr("provider_id",         &m_provider_id));
         OP_REQUIRES_OK(context, context->GetAttr("optimizer_signature", &m_optimizer_signature));
     }
 
@@ -62,11 +60,13 @@ public:
                     const_cast<char*>(tensor.tensor_data().data()));
             segments[i].second = tensor.tensor_data().size();
         }
-        
+       
+        auto ph = m_client->lookup(m_provider_addr, m_provider_id);
+
         auto local_bulk = m_client->engine().expose(segments, tl::bulk_mode::read_only);
 
         auto status = m_client->write_optimizer_data(
-                                    m_provider_handle,
+                                    ph,
                                     m_model_name,
                                     m_optimizer_signature,
                                     local_bulk);

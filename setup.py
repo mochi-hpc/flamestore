@@ -3,7 +3,7 @@ from distutils.extension import Extension
 from distutils.sysconfig import get_config_vars
 from distutils.command.build_clib import build_clib
 from distutils.command.build_ext import build_ext
-theta = False
+theta = True
 if theta:
     tf = None
 else:
@@ -15,8 +15,9 @@ import os.path
 import sys
 
 cxxflags = ['-std=c++14', '-g']
-cxxflags.append('-D_GLIBCXX_USE_CXX11_ABI=0')
-cxxflags.append('-D_GLIBCXX_USE_CXX14_ABI=0')
+if not theta:
+    cxxflags.append('-D_GLIBCXX_USE_CXX11_ABI=0')
+    cxxflags.append('-D_GLIBCXX_USE_CXX14_ABI=0')
 
 def get_pybind11_include():
     path = os.path.dirname(pybind11.__file__)
