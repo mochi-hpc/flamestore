@@ -3,26 +3,42 @@ from distutils.extension import Extension
 from distutils.sysconfig import get_config_vars
 from distutils.command.build_clib import build_clib
 from distutils.command.build_ext import build_ext
-import tensorflow as tf
+theta = False
+if theta:
+    tf = None
+else:
+    import tensorflow as tf
 import pybind11
 import pkgconfig
 import os
 import os.path
 import sys
 
+cxxflags = ['-std=c++14', '-g'],
+cxxflags.append('-D_GLIBCXX_USE_CXX11_ABI=0')
+cxxflags.append('-D_GLIBCXX_USE_CXX14_ABI=0')
+
 def get_pybind11_include():
     path = os.path.dirname(pybind11.__file__)
     return '/'.join(path.split('/')[0:-4] + ['include'])
 
 def get_tensorflow_include():
-    path = os.path.dirname(tf.__file__)
+    if tf is None:
+        path = '/soft/datascience/tensorflow/tf1.13/tensorflow'
+    else:
+        path = os.path.dirname(tf.__file__)
     return path+'/include'
 
 def get_tensorflow_lib_dir():
-    path = os.path.dirname(tf.__file__)
+    if tf is None:
+        path = '/soft/datascience/tensorflow/tf1.13/tensorflow'
+    else:
+        path = os.path.dirname(tf.__file__)
     return path
 
 def get_tensorflow_library():
+    if tf is None:
+        return 'tensorflow_framework'
     if tf.__version__ < '1.14.0':
         return 'tensorflow_framework'
     else:
@@ -54,10 +70,7 @@ flamestore_op_module = Extension('_flamestore_operations',
         libraries=flamestore_op_module_libraries,
         library_dirs=flamestore_op_module_library_dirs,
         include_dirs=flamestore_op_module_include_dirs,
-        extra_compile_args=['-std=c++14',
-                            '-g',
-                            '-D_GLIBCXX_USE_CXX11_ABI=0',
-                            '-D_GLIBCXX_USE_CXX14_ABI=0'],
+        extra_compile_args=cxxflags,
         depends=[])
 
 flamestore_server_module_libraries    = thallium['libraries']        \
@@ -84,10 +97,7 @@ flamestore_server_module = Extension('_flamestore_server',
         libraries=flamestore_server_module_libraries,
         library_dirs=flamestore_server_module_library_dirs,
         include_dirs=flamestore_server_module_include_dirs,
-        extra_compile_args=['-std=c++14',
-                            '-g',
-                            '-D_GLIBCXX_USE_CXX11_ABI=0',
-                            '-D_GLIBCXX_USE_CXX14_ABI=0'],
+        extra_compile_args=cxxflags,
         depends=[])
 
 flamestore_client_module_libraries    = thallium['libraries']
@@ -99,11 +109,7 @@ flamestore_client_module = Extension('_flamestore_client',
         libraries=flamestore_client_module_libraries,
         library_dirs=flamestore_client_module_library_dirs,
         include_dirs=flamestore_client_module_include_dirs,
-        extra_compile_args=['-std=c++14',
-                            '-g',
-                            '-Wl,--whole-archive',
-                            '-D_GLIBCXX_USE_CXX11_ABI=0',
-                            '-D_GLIBCXX_USE_CXX14_ABI=0'],
+        extra_compile_args=cxxflags,
         depends=[])
 
 setup(name='flamestore',
