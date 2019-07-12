@@ -60,6 +60,7 @@ class flamestore_memory_backend : public flamestore_backend {
          * @return pointer to the model.
          */
         inline model_t* _find_or_create_model(const std::string& model_name, bool& created) {
+            m_logger->info("Entering _find_or_create_model");
             m_models_rwlock.wrlock();
             auto it = m_models.find(model_name);
             if(it == m_models.end()) {
@@ -156,6 +157,7 @@ void flamestore_memory_backend::register_model(
         const std::string& optimizer_signature)
 {
     bool created = false;
+    m_logger->info("Entering flamestore_memory_backend::register_model");
     auto model = _find_or_create_model(model_name, created);
     if(not created) {
         m_logger->error("Model \"{}\" already exists", model_name);
@@ -165,6 +167,7 @@ void flamestore_memory_backend::register_model(
         m_logger->trace("Leaving flamestore_provider::on_register_model");
         return;
     }
+    m_logger->info("Model \"{}\" created", model_name);
 
     lock_guard_t guard(model->m_mutex);
     req.respond(flamestore_status::OK());

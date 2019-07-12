@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <spdlog/spdlog.h>
 #include <thallium.hpp>
 #include "status.hpp"
 #include "server_context.hpp"
@@ -45,12 +46,15 @@ class flamestore_backend {
         static std::unique_ptr<flamestore_backend> create(
                 const std::string& name,
                 const flamestore_server_context& ctx,
-                const config_type& config)
+                const config_type& config,
+                spdlog::logger* logger)
         {
             auto factory = s_backend_factories.find(name);
             if(factory == s_backend_factories.end()) {
+                logger->critical("Could not find factory for backend {}", name);
                 return std::unique_ptr<flamestore_backend>(nullptr);
             } else {
+                logger->info("Creating backend {}", name);
                 return factory->second(ctx, config);
             }
         }

@@ -86,6 +86,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             std::string& optimizer_signature)
     {
         m_logger->trace("Entering flamestore_provider::on_register_model for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->register_model(
             req,
             client_addr,
@@ -127,6 +132,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             const std::string& client_addr,
             const std::string& model_name) {
         m_logger->trace("Entering flamestore_provider::on_get_optimizer_config for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->get_optimizer_config(req, client_addr, model_name);
         m_logger->trace("Leaving flamestore_provider::on_get_optimizer_config");
     }
@@ -145,6 +155,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             const std::string& model_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_write_model_data for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->write_model_data(req, client_addr, model_name, model_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_write_model_data");
     }
@@ -162,6 +177,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             const std::string& model_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_read_model_data for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->read_model_data(req, client_addr, model_name, model_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_read_model_data");
     }
@@ -180,6 +200,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             const std::string& optimizer_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_write_optimizer_data for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->write_optimizer_data(req, client_addr, model_name, optimizer_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
     }
@@ -197,6 +222,11 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
             const std::string& optimizer_signature,
             tl::bulk& remote_bulk) {
         m_logger->trace("Entering flamestore_provider::on_read_optimizer_data for model \"{}\"", model_name);
+        if(!m_backend) {
+            m_logger->critical("Backend is NULL!");
+            req.respond(flamestore_status(FLAMESTORE_EBACKEND,"Backend is NULL!"));
+            return;
+        }
         m_backend->read_optimizer_data(req, client_addr, model_name, optimizer_signature, remote_bulk);
         m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
     }
@@ -271,7 +301,7 @@ class flamestore_provider : public tl::provider<flamestore_provider> {
         define("flamestore_start_sync_model",     &flamestore_provider::on_start_sync_model);
         define("flamestore_stop_sync_model",      &flamestore_provider::on_stop_sync_model);
         m_logger->trace("Initializing {} backend", backend);
-        m_backend = flamestore_backend::create(backend, m_server_context, config);
+        m_backend = flamestore_backend::create(backend, m_server_context, config, m_logger.get());
         get_engine().on_finalize([this]() {
                     m_logger->trace("Calling finalize callback");
                     m_backend.reset();

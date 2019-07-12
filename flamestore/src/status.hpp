@@ -46,6 +46,7 @@ enum flamestore_status_code {
     FLAMESTORE_ESIGNATURE = 3,
     FLAMESTORE_EMKDIR     = 4,
     FLAMESTORE_EIO        = 5,
+    FLAMESTORE_EBACKEND   = 6,
     FLAMESTORE_EOTHER
 };
 

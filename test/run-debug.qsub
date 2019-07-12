@@ -1,0 +1,49 @@
+#!/bin/bash
+#COBALT -t 0:30:00
+#COBALT --mode script
+#COBALT -A radix-io
+#COBALT -q debug-flat-quad
+
+# exit on error
+set -e
+
+if [[ $# -ne 1 ]] ; then
+    echo 'Usage: run.qsub <config.json>'
+    exit 0
+fi
+NUMNODES=$COBALT_JOBSIZE
+CONFIGFILE=$1
+
+export MPICH_GNI_NDREG_ENTRIES=1024
+
+module swap PrgEnv-intel PrgEnv-gnu
+module load cce
+module load datascience/mpi4py
+module load datascience/keras-2.2.4
+module load datascience/tensorflow-1.13
+
+# make spack available
+. $HOME/spack/share/spack/setup-env.sh
+export MODULEPATH=$HOME/spack/share/spack/modules/cray-cnl6-mic_knl:$MODULEPATH
+
+# load the required spack packages
+spack load -r py-sdskv
+spack load -r py-bake
+spack load -r py-mpi4py
+spack load -r jsoncpp
+spack load -r spdlog
+spack load -r py-h5py
+spack load -r py-keras
+
+DATE=`date +%s`
+JOBDIR=$PWD/job-$DATE
+
+mkdir $JOBDIR
+cp $CONFIGFILE $JOBDIR
+cd $JOBDIR
+
+export PYTHONPATH=..:../../build/lib.linux-x86_64-3.5:$PYTHONPATH
+export PMI_LABEL_ERROUT=1
+export PMI_LABEL_ERROUT_FORMAT="[%r of %R]  "
+
+aprun -n $NUMNODES -N 1 python ../test_theta.py $CONFIGFILE train evaluate

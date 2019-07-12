@@ -1,0 +1,8 @@
+{
+    "protocol" : "ofi+gni://ipogif0:5000",
+    "loglevel" : 0,
+    "backend" : "memory",
+    "flamestore" : {
+        "provider_id" : 0
+    }
+}
