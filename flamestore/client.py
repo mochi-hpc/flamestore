@@ -83,7 +83,7 @@ class Client(_flamestore_client.Client):
         the weights data will be loaded as well.
 
         Args:
-            provider (tensorchestra.ProviderHandle): provider handle.
+            provider (flamestore.ProviderHandle): provider handle.
             model_name (string): name of the model.
             load_data (bool): whether to also load the weights' data.
         Returns:
@@ -111,7 +111,7 @@ class Client(_flamestore_client.Client):
         the weights data will be loaded as well.
 
         Args:
-            provider (tensorchestra.ProviderHandle): provider handle.
+            provider (flamestore.ProviderHandle): provider handle.
             model_name (string): name of the model.
             load_data (bool): whether to also load the weights' data.
         Returns:
@@ -132,6 +132,35 @@ class Client(_flamestore_client.Client):
         if(load_data):
             self.logger.debug('Loading optimizer data')
             self.__load_optimizer_data(provider, model_name, optimizer)
+        return optimizer
+
+    @trace
+    def save_model(self, provider, model_name, model):
+        """Saves a model to a provider given its name.
+
+        The model must have been registered first.
+
+        Args:
+            provider (flamestore.ProviderHandle): provider handle.
+            model_name (string): name of the model.
+            model (Model): Keras model to save.
+        """
+        self.logger.debug('Saving model data')
+        self.__save_model_data(provider, model_name, model)
+
+    @trace
+    def save_optimizer(self, provider, model_name, optimizer):
+        """Saves an optimizer to a provider given a model name.
+
+        The model must have been registered first.
+
+        Args:
+            provider (flamestore.ProviderHandle): provider handle.
+            model_name (string): name of the model.
+            optimizer (Optimizer): Keras optimizer to save.
+        """
+        self.logger.debug('Saving optimizer data')
+        self.__save_optimizer_data(provider, model_name, optimizer)
         return optimizer
 
     @trace
@@ -200,3 +229,46 @@ class Client(_flamestore_client.Client):
                 tensors=optimizer_tensors)
             self.logger.debug('Executing read_optimizer operation')
             read_optimizer_op.run(session=K.get_session())
+
+    @trace
+    def __save_model_data(self, provider, model_name, model):
+        # list model tensors
+        model_tensors = []
+        for l in model.layers:
+            for w in l.weights:
+                model_tensors.append(w)
+        # compute signature
+        sig = util._compute_model_signature(model)
+        # create a read operation
+        if(len(model_tensors) > 0):
+            self.logger.debug('Creating write_model operation')
+            write_model_op = ops._write_model(
+                client=self._get_id(),
+                provider_addr=provider.get_addr(),
+                provider_id=provider.get_id(),
+                model_name=model_name,
+                model_signature=sig,
+                tensors=model_tensors)
+            self.logger.debug('Executing write_model operation')
+            write_model_op.run(session=K.get_session())
+
+    @trace
+    def __save_optimizer_data(self, provider, model_name, optimizer):
+        # list optimizer tensors
+        optimizer_tensors = []
+        for w in optimizer.weights:
+            optimizer_tensors.append(w)
+        # compute signature
+        sig = util._compute_optimizer_signature(optimizer)
+        # create a read operation
+        if(len(optimizer_tensors) > 0):
+            self.logger.debug('Creating read_optimizer operation')
+            write_optimizer_op = ops._write_optimizer(
+                client=self._get_id(),
+                provider_addr=provider.get_addr(),
+                provider_id=provider.get_id(),
+                model_name=model_name,
+                optimizer_signature=sig,
+                tensors=optimizer_tensors)
+            self.logger.debug('Executing read_optimizer operation')
+            write_optimizer_op.run(session=K.get_session())
