@@ -1,0 +1,23 @@
+{
+    "protocol" : "ofi+gni://ipogif0:5000",
+    "loglevel" : 0,
+    "backend" : "mochi",
+    "flamestore" : {
+        "provider_id" : 0
+    },
+    "sdskv" : {
+	"provider_id" : 0,
+	"database" : {
+	    "name" : "database",
+	    "path" : "/dev/shm/flamestore-metadata",
+	    "type" : "leveldb"
+	}
+    },
+    "bake" : {
+	"provider_id" : 0,
+	"target" : {
+	"path" : "/dev/shm/flamestore-data.dat",
+	"size" : 104857600
+	}
+    }
+}
