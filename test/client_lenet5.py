@@ -55,9 +55,16 @@ def evaluate(engine, provider_addr, provider_id):
     print('==> Starting model evaluation')
     score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=1)
     print('==> Score is '+str(score))
-    print('=========== SHUTTING DOWN ============')
-    provider.shutdown()
     K.clear_session()
+
+def shutdown(engine, provider_addr, provider_id):
+    print('=========== SHUTDOWN PHASE =========')
+    print('==> Initializing client')
+    client = Client(engine)
+    print('==> Initializing provider handle')
+    provider = client.lookup(provider_addr, provider_id)
+    print('==> Shuting down provider')
+    provider.shutdown()
 
 if __name__ == '__main__':
     log.setup_logging(level=logging.DEBUG)
