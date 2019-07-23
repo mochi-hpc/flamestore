@@ -46,4 +46,4 @@ export PYTHONPATH=..:../../build/lib.linux-x86_64-3.5:$PYTHONPATH
 export PMI_LABEL_ERROUT=1
 export PMI_LABEL_ERROUT_FORMAT="[%r of %R]  "
 
-aprun -n $NUMNODES -N 1 python ../test_theta.py $CONFIGFILE train evaluate
+aprun -n $NUMNODES -N 1 python ../test_theta.py $CONFIGFILE train evaluate shutdown
