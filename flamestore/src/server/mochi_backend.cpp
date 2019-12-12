@@ -9,12 +9,14 @@
 #include <json/json.h>
 #include <bake-client.h>
 #include <sdskv-client.h>
-#include "model.hpp"
-#include "backend.hpp"
+#include "server/model.hpp"
+#include "server/backend.hpp"
+
+namespace flamestore {
 
 namespace tl = thallium;
 
-class flamestore_mochi_backend : public flamestore_backend {
+class MochiBackend : public AbstractServerBackend {
 
     public:
 
@@ -130,9 +132,9 @@ class flamestore_mochi_backend : public flamestore_backend {
          */
         inline void _configure_backend(const std::string& config) {
             m_logger->trace("Configuring Mochi backend using JSON data");
-            Json::Reader reader;
+            std::stringstream ss(config);
             Json::Value root;
-            reader.parse(config.c_str(), root);
+            ss >> root;
             // Check validity of the JSON file
             if(!root.isMember("sdskv"))     throw std::runtime_error("Could not find sdskv entry");
             auto& sdskv = root["sdskv"];
@@ -494,7 +496,7 @@ class flamestore_mochi_backend : public flamestore_backend {
 
     public:
 
-        flamestore_mochi_backend(const flamestore_server_context& ctx, const flamestore_backend::config_type& config)
+        MochiBackend(const ServerContext& ctx, const AbstractServerBackend::config_type& config)
         : m_engine(ctx.m_engine)
         , m_logger(ctx.m_logger) {
             std::string json_config;
@@ -513,11 +515,11 @@ class flamestore_mochi_backend : public flamestore_backend {
             }
         }
 
-        flamestore_mochi_backend(const flamestore_backend&)            = delete;
-        flamestore_mochi_backend(flamestore_backend&&)                 = delete;
-        flamestore_mochi_backend& operator=(const flamestore_backend&) = delete;
-        flamestore_mochi_backend& operator=(flamestore_backend&&)      = delete;
-        ~flamestore_mochi_backend()                              = default;
+        MochiBackend(const AbstractServerBackend&)            = delete;
+        MochiBackend(AbstractServerBackend&&)                 = delete;
+        MochiBackend& operator=(const AbstractServerBackend&) = delete;
+        MochiBackend& operator=(AbstractServerBackend&&)      = delete;
+        ~MochiBackend()                              = default;
 
         virtual void register_model(
                 const tl::request& req,
@@ -569,9 +571,9 @@ class flamestore_mochi_backend : public flamestore_backend {
                 tl::bulk& remote_bulk) override;
 };
 
-REGISTER_FLAMESTORE_BACKEND("mochi",flamestore_mochi_backend);
+REGISTER_FLAMESTORE_BACKEND("mochi",MochiBackend);
         
-void flamestore_mochi_backend::register_model(
+void MochiBackend::register_model(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
@@ -593,18 +595,18 @@ void flamestore_mochi_backend::register_model(
                           created);
     if(not created) {
         m_logger->error("Model \"{}\" already exists or could not be created", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_EEXISTS,
                     "Model already exists or could not be created"));
-        m_logger->trace("Leaving flamestore_mochi_backend::register_model");
+        m_logger->trace("Leaving MochiBackend::register_model");
         return;
     }
 
-    req.respond(flamestore_status::OK());
-    m_logger->trace("Leaving flamestore_mochi_backend::register_model");
+    req.respond(Status::OK());
+    m_logger->trace("Leaving MochiBackend::register_model");
 }
 
-void flamestore_mochi_backend::get_model_config(
+void MochiBackend::get_model_config(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name)
@@ -612,17 +614,17 @@ void flamestore_mochi_backend::get_model_config(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_mochi_backend::get_model_config");
+        m_logger->trace("Leaving MochiBackend::get_model_config");
         return;
     }
     m_logger->info("Getting model config for model \"{}\"", model_name);
-    req.respond(flamestore_status::OK(model->m_model_config));
+    req.respond(Status::OK(model->m_model_config));
 }
 
-void flamestore_mochi_backend::get_optimizer_config(
+void MochiBackend::get_optimizer_config(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name)
@@ -630,17 +632,17 @@ void flamestore_mochi_backend::get_optimizer_config(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_mochi_backend::get_optimizer_config");
+        m_logger->trace("Leaving MochiBackend::get_optimizer_config");
         return;
     }
     m_logger->info("Getting optimizer config for model \"{}\"", model_name);
-    req.respond(flamestore_status::OK(model->m_optimizer_config));
+    req.respond(Status::OK(model->m_optimizer_config));
 }
 
-void flamestore_mochi_backend::write_model_data(
+void MochiBackend::write_model_data(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
@@ -650,19 +652,19 @@ void flamestore_mochi_backend::write_model_data(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
+        m_logger->trace("Leaving MochiBackend::write_model_data");
         return;
     }
     lock_guard_t guard(model->m_mutex);
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when writing model \"{}\"", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
+        m_logger->trace("Leaving MochiBackend::write_model_data");
         return;
     }
     bake_provider_handle_t ph = model->m_impl.m_ph;
@@ -670,13 +672,13 @@ void flamestore_mochi_backend::write_model_data(
     uint64_t size             = model->m_impl.m_model_region.m_size;
     int ret = bake_proxy_write(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size);
     if(ret != BAKE_SUCCESS) {
-        m_logger->error("In flamestore_mochi_backend::write_model_data, bake_proxy_write returned {}", ret);
+        m_logger->error("In MochiBackend::write_model_data, bake_proxy_write returned {}", ret);
     }
-    req.respond(flamestore_status::OK());
-    m_logger->trace("Leaving flamestore_mochi_backend::write_model_data");
+    req.respond(Status::OK());
+    m_logger->trace("Leaving MochiBackend::write_model_data");
 }
 
-void flamestore_mochi_backend::read_model_data(
+void MochiBackend::read_model_data(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
@@ -686,7 +688,7 @@ void flamestore_mochi_backend::read_model_data(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
         return;
@@ -695,10 +697,10 @@ void flamestore_mochi_backend::read_model_data(
     lock_guard_t guard(model->m_mutex);
     if(model->m_model_signature != model_signature) {
         m_logger->error("Unmatching signatures when reading model \"{}\"", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_mochi_backend::read_model_data");
+        m_logger->trace("Leaving MochiBackend::read_model_data");
         return;
     }
     bake_provider_handle_t ph = model->m_impl.m_ph;
@@ -707,23 +709,23 @@ void flamestore_mochi_backend::read_model_data(
     uint64_t size_read        = 0;
     int ret = bake_proxy_read(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size, &size_read);
     if(ret != BAKE_SUCCESS) {
-        m_logger->error("In flamestore_mochi_backend::read_model_data, bake_proxy_read returned {}", ret);
-        req.respond(flamestore_status(
+        m_logger->error("In MochiBackend::read_model_data, bake_proxy_read returned {}", ret);
+        req.respond(Status(
                         FLAMESTORE_EIO, "bake_proxy_read failed"));
         return;
     }
     if(size_read != size) {
-        m_logger->error("In flamestore_mochi_backend::read_model_data, bake_proxy_read read {} instead of {}",
+        m_logger->error("In MochiBackend::read_model_data, bake_proxy_read read {} instead of {}",
                 size_read, size);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_EIO, "bake_proxy_read failed"));
         return;
     }
-    req.respond(flamestore_status::OK());
-    m_logger->trace("Leaving flamestore_mochi_backend::read_model_data");
+    req.respond(Status::OK());
+    m_logger->trace("Leaving MochiBackend::read_model_data");
 }
 
-void flamestore_mochi_backend::write_optimizer_data(
+void MochiBackend::write_optimizer_data(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
@@ -733,20 +735,20 @@ void flamestore_mochi_backend::write_optimizer_data(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::write_optimizer_data");
         return;
     }
 
     lock_guard_t guard(model->m_mutex);
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when writing optimizer for model \"{}\"", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::write_optimizer_data");
         return;
     }
     bake_provider_handle_t ph = model->m_impl.m_ph;
@@ -754,13 +756,13 @@ void flamestore_mochi_backend::write_optimizer_data(
     uint64_t size             = model->m_impl.m_optimizer_region.m_size;
     int ret = bake_proxy_write(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size);
     if(ret != BAKE_SUCCESS) {
-        m_logger->error("In flamestore_mochi_backend::write_optimizer_data, bake_proxy_write returned {}", ret);
+        m_logger->error("In MochiBackend::write_optimizer_data, bake_proxy_write returned {}", ret);
     }
-    req.respond(flamestore_status::OK());
-    m_logger->trace("Leaving flamestore_mochi_backend::write_optimizer_data");
+    req.respond(Status::OK());
+    m_logger->trace("Leaving MochiBackend::write_optimizer_data");
 }
 
-void flamestore_mochi_backend::read_optimizer_data(
+void MochiBackend::read_optimizer_data(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
@@ -770,20 +772,20 @@ void flamestore_mochi_backend::read_optimizer_data(
     auto model = _find_model(model_name);
     if(model == nullptr) {
         m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::read_optimizer_data");
         return;
     }
 
     lock_guard_t guard(model->m_mutex);
     if(model->m_optimizer_signature != optimizer_signature) {
         m_logger->error("Unmatching signatures when reading optimizer for model \"{}\"", model_name);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::read_optimizer_data");
         return;
     }
     bake_provider_handle_t ph = model->m_impl.m_ph;
@@ -792,20 +794,22 @@ void flamestore_mochi_backend::read_optimizer_data(
     uint64_t size_read        = 0;
     int ret = bake_proxy_read(ph, rid, 0, remote_bulk.get_bulk(), 0, client_addr.c_str(), size, &size_read);
     if(ret != BAKE_SUCCESS) {
-        m_logger->error("In flamestore_mochi_backend::read_optimizer_data, bake_proxy_read returned {}", ret);
-        req.respond(flamestore_status(
+        m_logger->error("In MochiBackend::read_optimizer_data, bake_proxy_read returned {}", ret);
+        req.respond(Status(
                         FLAMESTORE_EIO, "bake_proxy_read failed"));
-        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::read_optimizer_data");
         return;
     }
     if(size_read != size) {
-        m_logger->error("In flamestore_mochi_backend::read_optimizer_data, bake_proxy_read read {} instead of {}",
+        m_logger->error("In MochiBackend::read_optimizer_data, bake_proxy_read read {} instead of {}",
                 size_read, size);
-        req.respond(flamestore_status(
+        req.respond(Status(
                     FLAMESTORE_EIO, "bake_proxy_read failed"));
-        m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+        m_logger->trace("Leaving MochiBackend::read_optimizer_data");
         return;
     }
-    req.respond(flamestore_status::OK());
-    m_logger->trace("Leaving flamestore_mochi_backend::read_optimizer_data");
+    req.respond(Status::OK());
+    m_logger->trace("Leaving MochiBackend::read_optimizer_data");
+}
+
 }

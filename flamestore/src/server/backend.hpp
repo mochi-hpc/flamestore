@@ -6,15 +6,17 @@
 #include <unordered_map>
 #include <spdlog/spdlog.h>
 #include <thallium.hpp>
-#include "status.hpp"
-#include "server_context.hpp"
+#include "common/status.hpp"
+#include "server/server_context.hpp"
 
-template<typename T>
-class flamestore_factory_registration;
+namespace flamestore {
 
 namespace tl = thallium;
 
-class flamestore_backend {
+template<typename T>
+class FactoryRegistration;
+
+class AbstractServerBackend {
 
     public:
 
@@ -23,36 +25,36 @@ class flamestore_backend {
     private:
 
         template<typename T>
-        friend class flamestore_factory_registration;
+        friend class FactoryRegistration;
 
         static std::unordered_map<
             std::string,
             std::function<
-                std::unique_ptr<flamestore_backend>(const flamestore_server_context&, const config_type&)>> s_backend_factories;
+                std::unique_ptr<AbstractServerBackend>(const ServerContext&, const config_type&)>> s_backend_factories;
     
     protected:
 
-        flamestore_backend() = default;
+        AbstractServerBackend() = default;
 
     public:
 
 
-        flamestore_backend(const flamestore_backend&)            = delete;
-        flamestore_backend(flamestore_backend&&)                 = delete;
-        flamestore_backend& operator=(const flamestore_backend&) = delete;
-        flamestore_backend& operator=(flamestore_backend&&)      = delete;
-        virtual ~flamestore_backend()                            = default;
+        AbstractServerBackend(const AbstractServerBackend&)            = delete;
+        AbstractServerBackend(AbstractServerBackend&&)                 = delete;
+        AbstractServerBackend& operator=(const AbstractServerBackend&) = delete;
+        AbstractServerBackend& operator=(AbstractServerBackend&&)      = delete;
+        virtual ~AbstractServerBackend()                            = default;
 
-        static std::unique_ptr<flamestore_backend> create(
+        static std::unique_ptr<AbstractServerBackend> create(
                 const std::string& name,
-                const flamestore_server_context& ctx,
+                const ServerContext& ctx,
                 const config_type& config,
                 spdlog::logger* logger)
         {
             auto factory = s_backend_factories.find(name);
             if(factory == s_backend_factories.end()) {
                 logger->critical("Could not find factory for backend {}", name);
-                return std::unique_ptr<flamestore_backend>(nullptr);
+                return std::unique_ptr<AbstractServerBackend>(nullptr);
             } else {
                 logger->info("Creating backend {}", name);
                 return factory->second(ctx, config);
@@ -110,18 +112,21 @@ class flamestore_backend {
 };
 
 template<typename T>
-class flamestore_factory_registration {
+class FactoryRegistration {
 
     public:
 
-        flamestore_factory_registration(const std::string& name) {
-            flamestore_backend::s_backend_factories[name] = [](const flamestore_server_context& ctx, const flamestore_backend::config_type& config) {
+    FactoryRegistration(const std::string& name) {
+        AbstractServerBackend::s_backend_factories[name] =
+            [](const ServerContext& ctx, const AbstractServerBackend::config_type& config) {
                 return std::make_unique<T>(ctx, config);
             };
-        }
+    }
 };
 
+}
+
 #define REGISTER_FLAMESTORE_BACKEND(__name_str__, __type__) \
-    static flamestore_factory_registration<__type__> __registration(__name_str__)
+    static FactoryRegistration<__type__> __registration(__name_str__)
 
 #endif

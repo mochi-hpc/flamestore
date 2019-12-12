@@ -4,42 +4,44 @@
 #include <map>
 #include <thallium/serialization/stl/string.hpp>
 
-struct flamestore_status {
+namespace flamestore {
 
-    int32_t     m_error = 0;
+struct Status {
+
+    int32_t     m_code = 0;
     std::string m_message;
 
-    flamestore_status() = default;
+    Status() = default;
 
-    flamestore_status(int32_t error, std::string message)
-    : m_error(error)
+    Status(int32_t code, std::string message)
+    : m_code(code)
     , m_message(std::move(message)) {}
 
     template<typename A>
     void serialize(A& ar) {
-        ar & m_error;
+        ar & m_code;
         ar & m_message;
     }
 
-    static flamestore_status OK(const std::string& msg) {
-        return flamestore_status{0, msg};
+    static Status OK(const std::string& msg) {
+        return Status{0, msg};
     }
 
-    static const flamestore_status& OK() {
-        static flamestore_status ok{ 0, "OK" };
+    static const Status& OK() {
+        static Status ok{ 0, "OK" };
         return ok;
     }
 
     std::pair<int32_t, std::string> copy_to_pair() const {
-        return std::make_pair(m_error, m_message);
+        return std::make_pair(m_code, m_message);
     }
 
     std::pair<int32_t, std::string> move_to_pair() {
-        return std::make_pair(m_error, std::move(m_message));
+        return std::make_pair(m_code, std::move(m_message));
     }
 };
 
-enum flamestore_status_code {
+enum StatusCode {
     FLAMESTORE_OK         = 0,
     FLAMESTORE_EEXISTS    = 1,
     FLAMESTORE_ENOEXISTS  = 2,
@@ -49,5 +51,7 @@ enum flamestore_status_code {
     FLAMESTORE_EBACKEND   = 6,
     FLAMESTORE_EOTHER
 };
+
+}
 
 #endif

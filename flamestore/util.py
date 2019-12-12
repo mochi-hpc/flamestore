@@ -11,20 +11,15 @@ def _hash(arr):
         x = x % m
     return x
 
-def _compute_model_signature(model):
+def _compute_signature(model, optimizer=None):
     arr = []
     for l in model.layers:
         for w in l.weights:
             arr.append(w.dtype.size)
             for d in w.shape:
                 arr.append(int(d))
-    return str(_hash(arr))
-
-
-def _compute_optimizer_signature(optimizer):
-    arr = []
-    for w in optimizer.weights:
-        arr.append(w.dtype.size)
-        for d in w.shape:
-            arr.append(int(d))
+    if(optimizer is not None):
+        for w in optimizer.weights:
+            for d in w.shape:
+                arr.append(int(d))
     return str(_hash(arr))

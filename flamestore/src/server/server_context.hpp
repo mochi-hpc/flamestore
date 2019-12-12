@@ -4,11 +4,15 @@
 #include <spdlog/spdlog.h>
 #include <thallium.hpp>
 
+namespace flamestore {
+
 namespace tl = thallium;
 
-struct flamestore_server_context {
+struct ServerContext {
     spdlog::logger* m_logger = nullptr;
     tl::engine*     m_engine = nullptr;
 };
+
+}
 
 #endif

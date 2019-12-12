@@ -1,5 +1,5 @@
 {
-    "protocol" : "tcp",
+    "protocol" : "ofi+tcp",
     "loglevel" : 0,
     "backend" : "memory",
     "flamestore" : {

@@ -7,8 +7,9 @@ from pymargo.core import Engine
 from flamestore.server import Provider as BackendProvider
 
 def create_connection_file(engine, filename):
+    config = { 'providers' : [ (str(engine.addr()), 0) ] }
     with open(filename,'w+') as f:
-        f.write(str(engine.addr()))
+        f.write(json.dumps(config))
 
 def run_flamestore_provider(engine, config):
     loglevel = config.get('loglevel', 1)
@@ -20,12 +21,12 @@ def run_flamestore_provider(engine, config):
 
 if __name__ == '__main__':
     if(len(sys.argv) != 3):
-        print('Usage: python server-mem.py <config.json> <connection.txt>')
+        print('Usage: python server-mem.py <config.json> <connection.json>')
         sys.exit(-1)
     configfile = sys.argv[1]
     with open(configfile) as f:
         config = json.loads(f.read())
-    protocol = config.get('protocol', 'tcp')
+    protocol = config.get('protocol', 'ofi+tcp')
     if(not 'flamestore' in config):
         print(f'{configfile} doesn\' seem to be a flamestore configuration file')
         sys.exit(-1)
