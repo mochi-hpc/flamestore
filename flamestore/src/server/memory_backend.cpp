@@ -12,9 +12,7 @@ class MemoryBackend : public AbstractServerBackend {
 
         struct model_impl {
             std::vector<char> m_model_data;
-            std::vector<char> m_optimizer_data;
             tl::bulk          m_model_data_bulk;
-            tl::bulk          m_optimizer_data_bulk;
         };
 
     public:
@@ -86,7 +84,7 @@ class MemoryBackend : public AbstractServerBackend {
         MemoryBackend(const ServerContext& ctx, const AbstractServerBackend::config_type& config)
         : m_engine(ctx.m_engine)
         , m_logger(ctx.m_logger) {
-            m_logger->info("Initializing memory backend");
+            m_logger->debug("Initializing memory backend");
         }
 
         MemoryBackend(const AbstractServerBackend&)            = delete;
@@ -100,49 +98,29 @@ class MemoryBackend : public AbstractServerBackend {
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_config,
-                const std::string& optimizer_config,
-                std::size_t model_data_size,
-                std::size_t optimizer_data_size,
-                const std::string& model_signature,
-                const std::string& optimizer_signature) override;
+                std::size_t& model_size,
+                const std::string& model_signature) override;
 
-        virtual void get_model_config(
+        virtual void reload_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name) override;
 
-        virtual void get_optimizer_config(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name) override;
-
-        virtual void write_model_data(
+        virtual void write_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
-                const tl::bulk& remote_bulk) override;
+                const tl::bulk& remote_bulk,
+                const std::size_t& size) override;
 
-        virtual void read_model_data(
+        virtual void read_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
-                const tl::bulk& remote_bulk) override;
-
-        virtual void write_optimizer_data(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name,
-                const std::string& optimizer_signature,
-                tl::bulk& remote_bulk) override;
-
-        virtual void read_optimizer_data(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name,
-                const std::string& optimizer_signature,
-                tl::bulk& remote_bulk) override;
+                const tl::bulk& remote_bulk,
+                const std::size_t& size) override;
 };
 
 REGISTER_FLAMESTORE_BACKEND("memory",MemoryBackend);
@@ -152,11 +130,8 @@ void MemoryBackend::register_model(
         const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_config,
-        const std::string& optimizer_config,
-        std::size_t model_data_size,
-        std::size_t optimizer_data_size,
-        const std::string& model_signature,
-        const std::string& optimizer_signature)
+        std::size_t& model_size,
+        const std::string& model_signature)
 {
     bool created = false;
     m_logger->info("Entering MemoryBackend::register_model");
@@ -179,11 +154,8 @@ void MemoryBackend::register_model(
     try {
 
         model->m_model_config        = std::move(model_config);
-        model->m_optimizer_config    = std::move(optimizer_config);
         model->m_model_signature     = std::move(model_signature);
-        model->m_optimizer_signature = std::move(optimizer_signature);
-        model->m_impl.m_model_data.resize(model_data_size);
-        model->m_impl.m_optimizer_data.resize(optimizer_data_size);
+        model->m_impl.m_model_data.resize(model_size);
 
         if(model->m_impl.m_model_data.size() != 0) {
             std::vector<std::pair<void*, size_t>> model_data_ptr(1);
@@ -192,19 +164,12 @@ void MemoryBackend::register_model(
             model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
         }
 
-        if(model->m_impl.m_optimizer_data.size() != 0) {
-            std::vector<std::pair<void*, size_t>> optimizer_data_ptr(1);
-            optimizer_data_ptr[0].first  = (void*)(model->m_impl.m_optimizer_data.data());
-            optimizer_data_ptr[0].second = model->m_impl.m_optimizer_data.size();
-            model->m_impl.m_optimizer_data_bulk = m_engine->expose(optimizer_data_ptr, tl::bulk_mode::read_write);
-        }
-
     } catch(const tl::exception& e) {
         m_logger->critical("Exception caught in flamestore_provider::on_register_model: {}", e.what());
     }
 }
 
-void MemoryBackend::get_model_config(
+void MemoryBackend::reload_model(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name) 
@@ -215,37 +180,20 @@ void MemoryBackend::get_model_config(
         req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_provider::on_get_model_config");
+        m_logger->trace("Leaving flamestore_provider::reload_model");
         return;
     }
     m_logger->info("Getting model config for model \"{}\"", model_name);
     req.respond(Status::OK(model->m_model_config));
 }
 
-void MemoryBackend::get_optimizer_config(
-        const tl::request& req,
-        const std::string& client_addr,
-        const std::string& model_name) 
-{
-    auto model = _find_model(model_name);
-    if(model == nullptr) {
-        m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(Status(
-                    FLAMESTORE_ENOEXISTS,
-                    "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_provider::on_get_optimizer_config");
-        return;
-    }
-    m_logger->info("Getting optimizer config for model \"{}\"", model_name);
-    req.respond(Status::OK(model->m_optimizer_config));
-}
-
-void MemoryBackend::write_model_data(
+void MemoryBackend::write_model(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
-        const tl::bulk& remote_bulk)
+        const tl::bulk& remote_bulk,
+        const std::size_t& size)
 {
     auto model = _find_model(model_name);
     if(model == nullptr) {
@@ -253,7 +201,7 @@ void MemoryBackend::write_model_data(
         req.respond(Status(
                     FLAMESTORE_ENOEXISTS,
                     "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_provider::on_write_model_data");
+        m_logger->trace("Leaving write_model");
         return;
     }
     m_logger->info("Pulling data from model \"{}\"", model_name);
@@ -263,19 +211,20 @@ void MemoryBackend::write_model_data(
         req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_provider::on_write_model_data");
+        m_logger->trace("Leaving write_model");
         return;
     }
     model->m_impl.m_model_data_bulk << remote_bulk.on(req.get_endpoint());
     req.respond(Status::OK());
 }
 
-void MemoryBackend::read_model_data(
+void MemoryBackend::read_model(
         const tl::request& req,
         const std::string& client_addr,
         const std::string& model_name,
         const std::string& model_signature,
-        const tl::bulk& remote_bulk)
+        const tl::bulk& remote_bulk,
+        const std::size_t& size)
 {
     auto model = _find_model(model_name);
     if(model == nullptr) {
@@ -292,73 +241,11 @@ void MemoryBackend::read_model_data(
         req.respond(Status(
                     FLAMESTORE_ESIGNATURE,
                     "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_provider::on_read_model_data");
+        m_logger->trace("Leaving on_read_model_data");
         return;
     }
     m_logger->info("Pushing data to model \"{}\"", model_name);
     model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
-    req.respond(Status::OK());
-}
-
-void MemoryBackend::write_optimizer_data(
-        const tl::request& req,
-        const std::string& client_addr,
-        const std::string& model_name,
-        const std::string& optimizer_signature,
-        tl::bulk& remote_bulk) 
-{
-    auto model = _find_model(model_name);
-    if(model == nullptr) {
-        m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(Status(
-                    FLAMESTORE_ENOEXISTS,
-                    "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
-        return;
-    }
-
-    lock_guard_t guard(model->m_mutex);
-    if(model->m_optimizer_signature != optimizer_signature) {
-        m_logger->error("Unmatching signatures when writing optimizer for model \"{}\"", model_name);
-        req.respond(Status(
-                    FLAMESTORE_ESIGNATURE,
-                    "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_provider::on_write_optimizer_data");
-        return;
-    }
-    m_logger->info("Pulling data from model optimizer \"{}\"", model_name);
-    model->m_impl.m_optimizer_data_bulk << remote_bulk.on(req.get_endpoint());
-    req.respond(Status::OK());
-}
-
-void MemoryBackend::read_optimizer_data(
-        const tl::request& req,
-        const std::string& client_addr,
-        const std::string& model_name,
-        const std::string& optimizer_signature,
-        tl::bulk& remote_bulk) 
-{
-    auto model = _find_model(model_name);
-    if(model == nullptr) {
-        m_logger->error("Model \"{}\" does not exist", model_name);
-        req.respond(Status(
-                    FLAMESTORE_ENOEXISTS,
-                    "No model found with provided name"));
-        m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
-        return;
-    }
-
-    lock_guard_t guard(model->m_mutex);
-    if(model->m_optimizer_signature != optimizer_signature) {
-        m_logger->error("Unmatching signatures when reading optimizer for model \"{}\"", model_name);
-        req.respond(Status(
-                    FLAMESTORE_ESIGNATURE,
-                    "Unmatching signatures"));
-        m_logger->trace("Leaving flamestore_provider::on_read_optimizer_data");
-        return;
-    }
-    m_logger->info("Pushing data to model optimizer \"{}\"", model_name);
-    model->m_impl.m_optimizer_data_bulk >> remote_bulk.on(req.get_endpoint());
     req.respond(Status::OK());
 }
 

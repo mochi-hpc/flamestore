@@ -55,7 +55,7 @@ class Server {
         });
         // Setting up the MasterProvider
         m_engine.enable_remote_shutdown();
-        m_provider = std::make_unique<MasterProvider>(m_engine);
+        m_provider = std::make_unique<MasterProvider>(m_engine, m_logger.get());
         // Setting up the backend
         m_server_context.m_engine = &m_engine;
         m_server_context.m_logger = m_logger.get();

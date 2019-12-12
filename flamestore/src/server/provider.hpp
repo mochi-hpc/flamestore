@@ -28,65 +28,110 @@ class MasterProvider : public tl::provider<MasterProvider> {
 
     private:
 
+    spdlog::logger* m_logger = nullptr;
     std::unique_ptr<AbstractServerBackend> m_backend;
 
     /**
      * @brief RPC called when a client registers a model.
      *
-     * @param req
-     * @param model_name
-     * @param model_config
-     * @param optimizer_config
+     * @param req Thallium request
+     * @param client_addr Address of the client
+     * @param name Model name
+     * @param config Model configuration (architecture + optimizer)
+     * @param signature Model signature for consistency checking
      */
     void on_register_model(
             const tl::request& req,
             const std::string& client_addr,
-            const std::string& model_name,
-            std::string& model_config,
-            std::string& optimizer_config,
-            std::size_t model_data_size,
-            std::size_t optimizer_data_size,
-            std::string& model_signature,
-            std::string& optimizer_signature);
+            const std::string& name,
+            std::string& config,
+            std::size_t size,
+            std::string& signature)
+    {
+        m_logger->debug("Registering model {} from client {}", name, client_addr);
+        if(m_backend) {
+            m_backend->register_model(req, client_addr, name, config, size, signature);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
 
     /**
      * @brief RPC called when a client wants to retrieve the
      * configuration of a model.
      *
-     * @param req
-     * @param model_name
+     * @param req Thallium request
+     * @param client_addr Address of the client
+     * @param name Model name
      */
     void on_reload_model(
             const tl::request& req,
             const std::string& client_addr,
-            const std::string& model_name);
+            const std::string& name)
+    {
+        m_logger->debug("Reloading model {} to client {}", name, client_addr);
+        if(m_backend) {
+            m_backend->reload_model(req, client_addr, name);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
 
     /**
      * @brief RPC called when a client wants to write data to a model.
      *
-     * @param req
-     * @param model_name
-     * @param remote_bulk
+     * @param req Thallium request
+     * @param client_addr Address of the client
+     * @param name Name of the model
+     * @param signature Signature of the model
+     * @param remote_bulk Bulk handle pointing to the model's memory
+     * @param size Size of the model data, in bytes
      */
     void on_write_model_data(
             const tl::request& req,
             const std::string& client_addr,
-            const std::string& model_name,
-            const std::string& model_signature,
-            tl::bulk& remote_bulk);
+            const std::string& name,
+            const std::string& signature,
+            tl::bulk& remote_bulk,
+            const std::size_t& size)
+    {
+        m_logger->debug("Writing model data for model {} from client {}", name, client_addr);
+        if(m_backend) {
+            m_backend->write_model(req, client_addr, name, signature, remote_bulk, size);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
 
     /**
      * @brief RPC called when a client wants to read a model.
      *
-     * @param req
-     * @param model_name
+     * @param req Thallium request
+     * @param client_addr Address of the client
+     * @param name Name of the model
+     * @param signature Signature of the model
+     * @param remote_bulk Bulk handle pointing to the model's memory
+     * @param size Size of the model data, in bytes
      */
     void on_read_model_data(
             const tl::request& req,
             const std::string& client_addr,
-            const std::string& model_name,
-            const std::string& model_signature,
-            tl::bulk& remote_bulk);
+            const std::string& name,
+            const std::string& signature,
+            tl::bulk& remote_bulk,
+            const std::size_t& size)
+    {
+        m_logger->debug("Reading model data for model {} requested by client {}", name, client_addr);
+        if(m_backend) {
+            m_backend->read_model(req, client_addr, name, signature, remote_bulk, size);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
 
     public:
 
@@ -96,15 +141,20 @@ class MasterProvider : public tl::provider<MasterProvider> {
      * @param engine Thallium engine
      * @param provider_id provider id
      */
-    MasterProvider(tl::engine& engine, uint16_t provider_id = 0)
-    : tl::provider<MasterProvider>(engine, provider_id) {
+    MasterProvider(tl::engine& engine, spdlog::logger* logger, uint16_t provider_id = 0)
+    : tl::provider<MasterProvider>(engine, provider_id)
+    , m_logger(logger) {
+        m_logger->debug("Registering RPCs on MasterProvider with provider id {}", provider_id);
         define("flamestore_register_model",   &MasterProvider::on_register_model);
         define("flamestore_reload_model",     &MasterProvider::on_reload_model);
         define("flamestore_write_model_data", &MasterProvider::on_write_model_data);
         define("flamestore_read_model_data",  &MasterProvider::on_read_model_data);
+        m_logger->debug("RPCs registered");
     }
 
-    ~MasterProvider() = default;
+    ~MasterProvider() {
+        m_logger->debug("Destroying MasterProvider");
+    }
 
     inline std::unique_ptr<AbstractServerBackend>& backend() {
         return m_backend;

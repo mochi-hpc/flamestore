@@ -66,49 +66,29 @@ class AbstractServerBackend {
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_config,
-                const std::string& optimizer_config,
-                std::size_t model_data_size,
-                std::size_t optimizer_data_size,
-                const std::string& model_signature,
-                const std::string& optimizer_signature) = 0;
+                std::size_t& model_size,
+                const std::string& model_signature) = 0;
 
-        virtual void get_model_config(
+        virtual void reload_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name) = 0;
 
-        virtual void get_optimizer_config(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name) = 0;
-
-        virtual void write_model_data(
+        virtual void write_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
-                const tl::bulk& remote_bulk) = 0;
+                const tl::bulk& remote_bulk,
+                const std::size_t& size) = 0;
 
-        virtual void read_model_data(
+        virtual void read_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
                 const std::string& model_signature,
-                const tl::bulk& remote_bulk) = 0;
-
-        virtual void write_optimizer_data(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name,
-                const std::string& optimizer_signature,
-                tl::bulk& remote_bulk) = 0;
-
-        virtual void read_optimizer_data(
-                const tl::request& req,
-                const std::string& client_addr,
-                const std::string& model_name,
-                const std::string& optimizer_signature,
-                tl::bulk& remote_bulk) = 0;
+                const tl::bulk& remote_bulk,
+                const std::size_t& size) = 0;
 };
 
 template<typename T>

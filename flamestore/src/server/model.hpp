@@ -13,9 +13,7 @@ struct flamestore_model {
     tl::mutex         m_mutex;
     std::string       m_name;
     std::string       m_model_config;
-    std::string       m_optimizer_config;
     std::string       m_model_signature;
-    std::string       m_optimizer_signature;
     T                 m_impl;
 
     flamestore_model() = default;
