@@ -67,6 +67,7 @@ class Client(_flamestore_client.Client):
             model_signature = util._compute_signature(model, model.optimizer)
         else:
             model_signature = util._compute_signature(model)
+        model.__flamestore_model_signature = model_signature
         logger.debug('Issuing register_model RPC')
         model_config = json.dumps(model_config)
         status, message = self._register_model(model_name,
@@ -120,7 +121,9 @@ class Client(_flamestore_client.Client):
             include_optimizer (bool): whether to include the model's optimizer.
             transfer (fun): transfer function.
         """
-        if(include_optimizer):
+        if(hasattr(model, '__flamestore_model_signature')):
+            model_signature = model.__flamestore_model_signature
+        elif(include_optimizer):
             model_signature = util._compute_signature(model, model.optimizer)
         else:
             model_signature = util._compute_signature(model)
