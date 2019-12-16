@@ -2,45 +2,58 @@
 #define __DUMMY_BACKEND_HPP
 
 #include <tmci/backend.hpp>
+#include <json/json.h>
+#include "client/client.hpp"
 
 namespace flamestore {
 
 class MochiBackend : public tmci::Backend {
 
-    static std::vector<char> m_data; // tmp
+    Client*     m_client = nullptr;
+    std::string m_model_name;
+    std::string m_signature;
 
     public:
 
     MochiBackend(const char* config) {
-        std::cout << "[FlameStore] Initialization, config: " << config << std::endl;
+        std::cout << "[FlameStore] MochiBackend constructor" << std::endl;
+        std::stringstream ss(config);
+        Json::Value root;
+        ss >> root;
+        std::cout << "model name is " << root["model_name"].asString() << std::endl;
+        std::cout << "flamestore client is " << root["flamestore_client"].asString() << std::endl;
+        m_client = Client::from_id(root["flamestore_client"].asString());
+        m_model_name = root["model_name"].asString();
+        m_signature = root["signature"].asString();
     }
 
     ~MochiBackend() = default;
 
     virtual int Save(const std::vector<std::reference_wrapper<const tensorflow::Tensor>>& tensors) {
         std::cout << "[FlameStore] Saving " << tensors.size() << " tensors:" << std::endl;
+        // TODO check that m_client is valid
+        std::vector<std::pair<void*,size_t>> segments;
+        segments.reserve(tensors.size());
         size_t total_size = 0;
         for(const tensorflow::Tensor& t : tensors) {
-            std::cout << "  data=" << (void*)t.tensor_data().data() << " size=" << t.tensor_data().size() << std::endl;
             total_size += t.tensor_data().size();
+            segments.emplace_back((void*)t.tensor_data().data(), (size_t)t.tensor_data().size());
         }
-        m_data.resize(total_size);
-        size_t offset = 0;
-        for(const tensorflow::Tensor& t : tensors) {
-            memcpy(m_data.data() + offset, (void*)t.tensor_data().data(), t.tensor_data().size());
-            offset += t.tensor_data().size();
-        }
-        return 0;
+        Client::return_status status = m_client->write_model_data(m_model_name, m_signature, segments, total_size);
+        return status.first;
     }
     virtual int Load(const std::vector<std::reference_wrapper<const tensorflow::Tensor>>& tensors) {
         std::cout << "[FlameStore] Loading " << tensors.size() << " tensors:" << std::endl;
-        size_t offset = 0;
+        // TODO check that m_client is valid
+        std::vector<std::pair<void*,size_t>> segments;
+        segments.reserve(tensors.size());
+        size_t total_size = 0;
         for(const tensorflow::Tensor& t : tensors) {
-            std::cout << "  data=" << (void*)t.tensor_data().data() << " size=" << t.tensor_data().size() << std::endl;
-            memcpy((void*)t.tensor_data().data(), m_data.data() + offset, t.tensor_data().size());
-            offset += t.tensor_data().size();
+            total_size += t.tensor_data().size();
+            segments.emplace_back((void*)t.tensor_data().data(), (size_t)t.tensor_data().size());
         }
-        return 0;
+        Client::return_status status = m_client->read_model_data(m_model_name, m_signature, segments, total_size);
+        return status.first;
     }
 };
 

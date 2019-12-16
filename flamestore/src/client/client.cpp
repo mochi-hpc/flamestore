@@ -3,63 +3,80 @@
 
 namespace flamestore {
 
-void ProviderHandle::shutdown() const {
-    m_engine->shutdown_remote_engine(m_provider_handle);
-}
-
-Client::Client(pymargo_instance_id mid, const std::string& configfile)
+Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     : m_engine(std::make_shared<tl::engine>(CAPSULE2MID(mid)))
-    , m_addr_str(m_engine->self())
+    , m_client_addr(m_engine->self())
     , m_rpc_register_model(m_engine->define("flamestore_register_model"))
     , m_rpc_reload_model(m_engine->define("flamestore_reload_model"))
+    , m_rpc_write_model(m_engine->define("flamestore_write_model_data"))
+    , m_rpc_read_model(m_engine->define("flamestore_read_model_data"))
 {
-    std::ifstream ifs(configfile);
+    std::ifstream ifs(connectionfile);
     if(!ifs.good())
-        throw std::runtime_error(std::string("File ")+configfile+" not found");
-    std::string metadata_provider_address;
-    uint16_t metadata_provider_id;
-    ifs >> metadata_provider_address >> metadata_provider_id;
-//    auto endpoint = m_engine->lookup(metadata_provider_address);
-//    m_metadata_provider_handle = ProviderHandle(m_engine,
-//            tl::provider_handle(endpoint, metadata_provider_id));
+        throw std::runtime_error(std::string("File ")+connectionfile+" not found");
+    std::string master_provider_address;
+    ifs >> master_provider_address;
+    auto endpoint = m_engine->lookup(master_provider_address);
+    m_master_provider = tl::provider_handle(endpoint, 0);
 }
 
 Client::return_status Client::register_model(
         const std::string& model_name,
         const std::string& model_config,
         std::size_t model_data_size,
-        const std::string& model_signature) const
+        const std::string& model_signature)
 {
-    Status status(0, "");
-    std::cerr << "[CLIENT] Registering model " << model_name << std::endl;
-    some_model_config = model_config;
-#if 0
-    flamestore_status status = m_rpc_register_model
-        .on(m_metadata_provider_handle.m_provider_handle)(
-            m_addr_str,
+    Status status = m_rpc_register_model
+        .on(m_master_provider)(
+            m_client_addr,
             model_name,
             model_config,
-            optimizer_config,
             model_data_size,
-            optimizer_data_size,
-            model_signature,
-            optimizer_signature);
-#endif
+            model_signature);
     return status.move_to_pair();
 }
 
 Client::return_status Client::reload_model(
-        const std::string& model_name,
-        bool include_optimizer) const
+        const std::string& model_name)
 {
-    std::cerr << "[CLIENT] Reloading model " << model_name << std::endl;
-    Status status(0, some_model_config);
-#if 0
-    flamestore_status status = m_rpc_reload_model
-        .on(m_metadata_provider_handle.m_provider_handle)(
+    Status status = m_rpc_reload_model
+        .on(m_master_provider)(
+            m_client_addr,
+            model_name);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::write_model_data(
+        const std::string& model_name,
+        const std::string& signature,
+        std::vector<std::pair<void*,size_t>>& memory,
+        const std::size_t& size)
+{
+    tl::bulk local_bulk = engine().expose(memory, tl::bulk_mode::read_only);
+    Status status = m_rpc_write_model
+        .on(m_master_provider)(
+            m_client_addr,
             model_name,
-            include_optimizer);
-#endif
+            signature,
+            local_bulk,
+            size);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::read_model_data(
+        const std::string& model_name,
+        const std::string& signature,
+        std::vector<std::pair<void*,size_t>>& memory,
+        const std::size_t& size)
+{
+    tl::bulk local_bulk = engine().expose(memory, tl::bulk_mode::write_only);
+    Status status = m_rpc_read_model
+        .on(m_master_provider)(
+            m_client_addr,
+            model_name,
+            signature,
+            local_bulk,
+            size);
     return status.move_to_pair();
 }
 

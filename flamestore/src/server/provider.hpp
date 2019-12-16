@@ -45,7 +45,7 @@ class MasterProvider : public tl::provider<MasterProvider> {
             const std::string& client_addr,
             const std::string& name,
             std::string& config,
-            std::size_t size,
+            std::size_t& size,
             std::string& signature)
     {
         m_logger->debug("Registering model {} from client {}", name, client_addr);
@@ -139,6 +139,7 @@ class MasterProvider : public tl::provider<MasterProvider> {
      * @brief Constructor.
      *
      * @param engine Thallium engine
+     * @param logger Logger
      * @param provider_id provider id
      */
     MasterProvider(tl::engine& engine, spdlog::logger* logger, uint16_t provider_id = 0)
@@ -152,6 +153,9 @@ class MasterProvider : public tl::provider<MasterProvider> {
         m_logger->debug("RPCs registered");
     }
 
+    /**
+     * @brief Destructor.
+     */
     ~MasterProvider() {
         m_logger->debug("Destroying MasterProvider");
     }

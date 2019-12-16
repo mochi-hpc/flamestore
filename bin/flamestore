@@ -1,0 +1,180 @@
+#!/bin/env python
+from __future__ import print_function
+import sys
+import os.path
+import argparse
+import spdlog
+import json
+
+WKSPACE_DIR = '/.flamestore'
+MASTER_FILE = WKSPACE_DIR + '/master'
+CONFIG_FILE = WKSPACE_DIR + '/config.json'
+
+logger = spdlog.ConsoleLogger("FlameStore") 
+logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
+
+def fatal(msg, add_new_line=True):
+    logger.critical(msg)
+    sys.exit(-1)
+
+def is_workspace(path):
+    return os.path.isdir(path+WKSPACE_DIR)
+
+# ==================================================================== #
+# Create FlameStore workspace
+# ==================================================================== #
+def create(args):
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    path = args.workspace
+    workspace_config = {
+            'protocol' : args.protocol,
+            'backend' : args.backend,
+    }
+    if(not os.path.exists(path) or not os.path.isdir(path)):
+        fatal('Path doesn\'t exist or is not a directory.')
+    path = os.path.abspath(path)
+    if(is_workspace(path)):
+        reinit = True
+    else:
+        reinit = False
+        logger.debug('Creating .flamestore directory in '+path)
+        os.makedirs(path+WKSPACE_DIR)
+    with open(path+CONFIG_FILE, 'w+') as f:
+        logger.debug('Creating config.json in '+path+WKSPACE_DIR)
+        f.write(json.dumps(workspace_config, indent=2))
+    if(reinit):
+        logger.info('Reinitialized FlameStore workspace ('+path+WKSPACE_DIR+')')
+    else:
+        logger.info('Initialized FlameStore workspace ('+path+WKSPACE_DIR+')')
+
+# ==================================================================== #
+# Run FlameStore instances
+# ==================================================================== #
+
+def __run_master(engine, path, config):
+    from flamestore.server import MasterServer
+    loglevel = config.get('loglevel', 1)
+    backend  = config.get('backend', 'memory')
+    master = MasterServer(engine, config={}, loglevel=loglevel, backend=backend)
+    info = master.get_connection_info()
+    logger.debug('Creating master connection information at '+path+MASTER_FILE)
+    with open(path+MASTER_FILE, 'w+') as f:
+        f.write(info)
+    return master
+
+def __finalize_master(master, path):
+    if(master is None):
+        return
+    else:
+        logger.debug('Removing master connection information')
+        os.remove(path+MASTER_FILE)
+
+def __run_worker(engine, path, config):
+    if(config['backend'] == 'memory'):
+        fatal('Memory backend does\'t have workers')
+    return None
+
+def __finalize_worker(worker, path):
+    if(worker is None):
+        return
+
+def run(args):
+    from pymargo.core import Engine
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    path = os.path.abspath(args.workspace)
+    if(not is_workspace(path)):
+        fatal(path+' is not a FlameStore workspace')
+    configfile = path+CONFIG_FILE
+    try:
+        logger.debug('Opening config file '+configfile)
+        with open(configfile) as f:
+            config = json.loads(f.read())
+    except:
+        fatal('Could not open file '+configfile)
+    if(not (args.master or args.worker)):
+        logger.debug('No master or worker to run')
+        sys.exit(0)
+    protocol = config['protocol']
+    logger.debug('Creating engine with protocol '+protocol)
+    engine = Engine(protocol)
+    logger.debug('Enabling remote shutdown')
+    engine.enable_remote_shutdown()
+    master = None
+    worker = None
+    if(args.master):
+        master = __run_master(engine, path, config)
+    else:
+        worker = __run_worker(engine, path, config)
+    logger.info('Server now running')
+    engine.wait_for_finalize()
+    logger.info('Server shutting down')
+    __finalize_worker(worker, path)
+    __finalize_master(master, path)
+
+# ==================================================================== #
+# Shutdown command
+# ==================================================================== #
+def shutdown(args):
+    import pymargo.core
+    from pymargo.core import Engine
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    path = os.path.abspath(args.workspace)
+    if(not is_workspace(path)):
+        fatal(path+' is not a FlameStore workspace')
+    try:
+        logger.debug('Opening config file '+path+CONFIG_FILE)
+        with open(path+CONFIG_FILE) as f:
+            config = json.loads(f.read())
+    except:
+        fatal('Could not open file '+CONFIG_FILE)
+    try:
+        logger.debug('Opening connection file '+path+MASTER_FILE)
+        with open(path+MASTER_FILE) as f:
+            address = f.read()
+    except:
+        fatal('Could not open file '+MASTER_FILE)
+    protocol = config['protocol']
+    logger.debug('Creating engine with protocol '+protocol)
+    engine = Engine(protocol, mode=pymargo.core.client)
+    logger.debug('Looking up address '+address)
+    endpoint = engine.lookup(address)
+    logger.info('Shutting down FlameStore')
+    endpoint.shutdown()
+    del endpoint
+    engine.finalize()
+    
+# ==================================================================== #
+# Command line parser
+# ==================================================================== #
+parser = argparse.ArgumentParser(prog='flamestore',
+        description='Command-line program for FlameStore management')
+subparsers = parser.add_subparsers()
+
+# Command to create the workspace and initialize it
+create_parser = subparsers.add_parser('init', help='Create a FlameStore workspace in the current directory')
+create_parser.add_argument('--protocol', '-p', type=str, help='Protocol to use by FlameStore for this workspace', default='ofi+tcp')
+create_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+create_parser.add_argument('--backend', '-b', type=str, help='Backend for FlameStore to use on thie workspace', default='memory')
+create_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+create_parser.set_defaults(func=create)
+
+# Command to run the FlameStore master or worker
+run_parser = subparsers.add_parser('run', help='Run a FlameStore server (master or worker)')
+run_parser.add_argument('--master', '-m', action='store_true', help='Run the FlameStore master')
+run_parser.add_argument('--storage', '-s', action='store_true', help='Run a FlameStore storage worker')
+run_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+run_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+run_parser.set_defaults(func=run)
+
+# Shutdown command
+shutdown_parser = subparsers.add_parser('shutdown', help='Shuts down FlameStore')
+shutdown_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+shutdown_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+shutdown_parser.set_defaults(func=shutdown)
+
+if __name__ == '__main__':
+    args = parser.parse_args(sys.argv[1:])
+    args.func(args)

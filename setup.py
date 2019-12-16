@@ -79,9 +79,18 @@ flamestore_server_module = Extension('_flamestore_server',
         extra_compile_args=cxxflags,
         depends=[])
 
-flamestore_client_module_libraries    = thallium['libraries'] + tf_info['libraries'] + [ ':'+tmci.get_library() ]
-flamestore_client_module_library_dirs = thallium['library_dirs'] + tf_info['library_dirs']+ [ tmci.get_library_dir() ]
-flamestore_client_module_include_dirs = thallium['include_dirs'] + [ src_dir ] + tf_info['include_dirs']
+flamestore_client_module_libraries    = thallium['libraries']       \
+                                      + tf_info['libraries']        \
+                                      + [ ':'+tmci.get_library() ]  \
+                                      + jsoncpp['libraries']
+flamestore_client_module_library_dirs = thallium['library_dirs']    \
+                                      + tf_info['library_dirs']     \
+                                      + [ tmci.get_library_dir() ]  \
+                                      + jsoncpp['library_dirs']
+flamestore_client_module_include_dirs = thallium['include_dirs']    \
+                                      + [ src_dir ]                 \
+                                      + tf_info['include_dirs']     \
+                                      + jsoncpp['include_dirs']
 flamestore_client_module = Extension('_flamestore_client',
         ['flamestore/src/client/client.cpp',
          'flamestore/src/client/client_module.cpp',

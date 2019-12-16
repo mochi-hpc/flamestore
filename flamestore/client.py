@@ -1,3 +1,4 @@
+import tmci.checkpoint
 import _flamestore_client
 import json
 import os.path
@@ -25,8 +26,8 @@ class Client(_flamestore_client.Client):
         if(not os.path.isdir(path+'/.flamestore')):
             logger.critical('Directory is not a FlameStore workspace')
             raise RuntimeError('Directory is not a FlameStore workspace')
-        configfile = path + '/.flamestore/config.json'
-        super().__init__(engine._mid, configfile)
+        connectionfile = path + '/.flamestore/master'
+        super().__init__(engine._mid, connectionfile)
         logger.debug('Creating a Client for workspace '+path)
 
     def register_model(self,
@@ -89,7 +90,7 @@ class Client(_flamestore_client.Client):
             a keras Model instance.
         """
         logger.debug('Issuing _reload_model RPC')
-        status, message = self._reload_model(model_name, include_optimizer)
+        status, message = self._reload_model(model_name)
         if(status != 0):
             logger.error(message)
             raise RuntimeError(message)
@@ -108,3 +109,48 @@ class Client(_flamestore_client.Client):
             model.optimizer = cls(**optimizer_config)
         return model
 
+    def __transfer_weights(self, model_name, model, include_optimizer, transfer):
+        """Helper function that can save and load weights (the save and load
+        functions must be passed as the "transfer" argument). Used by the
+        save_weights and load_weights methods.
+        
+        Args:
+            model_name (str): name of the model.
+            model (keras.Model): model to transfer.
+            include_optimizer (bool): whether to include the model's optimizer.
+            transfer (fun): transfer function.
+        """
+        if(include_optimizer):
+            model_signature = util._compute_signature(model, model.optimizer)
+        else:
+            model_signature = util._compute_signature(model)
+        tmci_params = { 'model_name' : model_name,
+                        'flamestore_client' : self._get_id(),
+                        'signature' : model_signature }
+        transfer(model, backend='flamestore',
+                 config=json.dumps(tmci_params),
+                 include_optimizer=include_optimizer)
+
+    def save_weights(self, model_name, model, include_optimizer=True):
+        """Saves the model's weights. The model must have been registered.
+
+        Args:
+            model_name (str): name of the model.
+            model (keras.Model): model from which to save the weights.
+            include_optimizer (bool): whether to include the model's optimizer.
+        """
+        self.__transfer_weights(model_name, model, include_optimizer, 
+                                tmci.checkpoint.save_weights)
+
+    def load_weights(self, model_name, model, include_optimizer=True):
+        """Loads the model's weights. The model must have been registered
+        and built.
+
+        Args:
+            model_name (str): name of the model.
+            model (keras.Model): model into which to load the weights.
+            include_optimizer (bool): whether to include the model's optimizer.
+        """
+        model._make_train_function()
+        self.__transfer_weights(model_name, model, include_optimizer, 
+                                tmci.checkpoint.load_weights)
