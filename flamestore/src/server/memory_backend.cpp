@@ -123,7 +123,7 @@ class MemoryBackend : public AbstractServerBackend {
                 const std::size_t& size) override;
 };
 
-REGISTER_FLAMESTORE_BACKEND("memory",MemoryBackend);
+REGISTER_FLAMESTORE_BACKEND("master-memory",MemoryBackend);
 
 void MemoryBackend::register_model(
         const tl::request& req,
