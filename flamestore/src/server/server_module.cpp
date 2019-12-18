@@ -9,10 +9,12 @@ PYBIND11_MODULE(_flamestore_server, m) {
         .def(py11::init<pymargo_instance_id, 
                         const std::string&,
                         const std::string&,
+                        const std::string&,
                         int,
                         const flamestore::Server::backend_config_t&>(),
                 py11::arg("mid"),
-                py11::arg("backend")=std::string("memory"),
+                py11::arg("workspace")=std::string("."),
+                py11::arg("backend")=std::string("master-memory"),
                 py11::arg("logfile")=std::string(""),
                 py11::arg("loglevel")=2,
                 py11::arg("config")=py11::dict())

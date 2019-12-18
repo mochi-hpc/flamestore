@@ -51,19 +51,23 @@ bake_server  = pkgconfig.parse('bake-server')
 sdskv_client = pkgconfig.parse('sdskv-client')
 sdskv_server = pkgconfig.parse('sdskv-server')
 jsoncpp      = pkgconfig.parse('jsoncpp')
+ssg          = pkgconfig.parse('ssg')
 
 flamestore_server_module_libraries    = thallium['libraries']        \
                                       + bake_client['libraries']     \
                                       + sdskv_client['libraries']    \
+                                      + ssg['libraries']             \
                                       + jsoncpp['libraries']
 flamestore_server_module_library_dirs = thallium['library_dirs']     \
                                       + bake_client['library_dirs']  \
                                       + sdskv_client['library_dirs'] \
+                                      + ssg['library_dirs']          \
                                       + jsoncpp['library_dirs']
 flamestore_server_module_include_dirs = thallium['include_dirs']     \
                                       + bake_client['include_dirs']  \
                                       + sdskv_client['include_dirs'] \
                                       + jsoncpp['include_dirs']      \
+                                      + ssg['include_dirs']          \
                                       + [ src_dir ]
 flamestore_server_module = Extension('_flamestore_server',
         ['flamestore/src/server/backend.cpp',

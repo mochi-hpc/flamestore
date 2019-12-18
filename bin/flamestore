@@ -56,7 +56,7 @@ def __run_master(engine, path, config):
     from flamestore.server import MasterServer
     loglevel = config.get('loglevel', 1)
     backend  = config.get('backend', 'master-memory')
-    master = MasterServer(engine, config={}, loglevel=loglevel, backend=backend)
+    master = MasterServer(engine, workspace=path, config={}, loglevel=loglevel, backend=backend)
     info = master.get_connection_info()
     logger.debug('Creating master connection information at '+path+MASTER_FILE)
     with open(path+MASTER_FILE, 'w+') as f:
