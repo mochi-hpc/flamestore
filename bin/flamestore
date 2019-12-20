@@ -71,9 +71,13 @@ def __finalize_master(master, path):
         os.remove(path+MASTER_FILE)
 
 def __run_worker(engine, path, config):
-    if(config['backend'] == 'master-memory'):
-        fatal('Memory backend does\'t have workers')
-    return None
+#    if(config['backend'] == 'master-memory'):
+#        fatal('Memory backend does\'t have workers')
+    from flamestore.server import StorageServer
+    loglevel = config.get('loglevel', 1)
+    backend  = config.get('backend', 'master-memory')
+    worker = StorageServer(engine, workspace=path, config={}, loglevel=loglevel, backend=backend)
+    return worker 
 
 def __finalize_worker(worker, path):
     if(worker is None):
@@ -93,7 +97,7 @@ def run(args):
             config = json.loads(f.read())
     except:
         fatal('Could not open file '+configfile)
-    if(not (args.master or args.worker)):
+    if(not (args.master or args.storage)):
         logger.debug('No master or worker to run')
         sys.exit(0)
     protocol = config['protocol']
@@ -130,12 +134,15 @@ def shutdown(args):
             config = json.loads(f.read())
     except:
         fatal('Could not open file '+CONFIG_FILE)
-    try:
-        logger.debug('Opening connection file '+path+MASTER_FILE)
-        with open(path+MASTER_FILE) as f:
-            address = f.read()
-    except:
-        fatal('Could not open file '+MASTER_FILE)
+    if(len(args.storage) != 0):
+        address = args.storage
+    else:
+        try:
+            logger.debug('Opening connection file '+path+MASTER_FILE)
+            with open(path+MASTER_FILE) as f:
+                address = f.read()
+        except:
+            fatal('Could not open file '+MASTER_FILE)
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
     engine = Engine(protocol, mode=pymargo.core.client)
@@ -206,6 +213,7 @@ run_parser.set_defaults(func=run)
 shutdown_parser = subparsers.add_parser('shutdown', help='Shuts down FlameStore')
 shutdown_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
 shutdown_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+shutdown_parser.add_argument('--storage', '-s', type=str, default='', help='Address of a particular storage node to shut down')
 shutdown_parser.set_defaults(func=shutdown)
 
 # Format command
