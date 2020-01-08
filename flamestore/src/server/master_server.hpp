@@ -58,6 +58,7 @@ class MasterServer {
         // Setting up the finalize callbacks
         m_engine.push_prefinalize_callback([this]() {
             m_logger->trace("Pre-finalizing...");
+            m_provider->backend()->on_shutdown();
             _ssg_finalize();
         });
         m_engine.push_finalize_callback([this]() {
@@ -139,12 +140,15 @@ class MasterServer {
         MasterServer* server = static_cast<MasterServer*>(arg);
         if(update_type == SSG_MEMBER_JOINED) {
             server->m_logger->info("Member {} joined", member_id);
+            hg_addr_t addr = ssg_get_group_member_addr(server->m_ssg_gid, member_id);
+            server->m_provider->backend()->on_worker_joined(static_cast<uint64_t>(member_id), addr);
         } else if(update_type == SSG_MEMBER_LEFT) {
             server->m_logger->info("Member {} left", member_id);
+            server->m_provider->backend()->on_worker_left(member_id);
         } else {
             server->m_logger->info("Member {} died", member_id);
+            server->m_provider->backend()->on_worker_died(member_id);
         }
-        // TODO
     }
 };
 

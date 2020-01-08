@@ -89,6 +89,18 @@ class AbstractServerBackend {
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) = 0;
+
+        virtual void on_shutdown() {}
+
+        virtual void on_worker_joined(
+                uint64_t member_id,
+                hg_addr_t addr) {}
+
+        virtual void on_worker_left(
+                uint64_t member_id) {}
+
+        virtual void on_worker_died(
+                uint64_t member_id) {}
 };
 
 template<typename T>

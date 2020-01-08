@@ -70,13 +70,15 @@ def __finalize_master(master, path):
         logger.debug('Removing master connection information')
         os.remove(path+MASTER_FILE)
 
-def __run_worker(engine, path, config):
+def __run_worker(engine, path, config, storage_path):
 #    if(config['backend'] == 'master-memory'):
 #        fatal('Memory backend does\'t have workers')
     from flamestore.server import StorageServer
     loglevel = config.get('loglevel', 1)
     backend  = config.get('backend', 'master-memory')
-    worker = StorageServer(engine, workspace=path, config={}, loglevel=loglevel, backend=backend)
+    worker = StorageServer(engine, workspace=path, 
+                config = { 'storage-path' : storage_path },
+                loglevel=loglevel, backend=backend)
     return worker 
 
 def __finalize_worker(worker, path):
@@ -110,7 +112,7 @@ def run(args):
     if(args.master):
         master = __run_master(engine, path, config)
     else:
-        worker = __run_worker(engine, path, config)
+        worker = __run_worker(engine, path, config, args.storage)
     logger.info('Server now running')
     engine.wait_for_finalize()
     logger.info('Server shutting down')
