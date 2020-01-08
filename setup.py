@@ -76,6 +76,8 @@ flamestore_server_module = Extension('_flamestore_server',
         ['flamestore/src/server/backend.cpp',
          'flamestore/src/server/memory_backend.cpp',
          'flamestore/src/server/mochi_backend.cpp',
+         'flamestore/src/server/master_server.cpp',
+         'flamestore/src/server/storage_server.cpp',
         # 'flamestore/src/server/mmapfs_backend.cpp',
         # 'flamestore/src/server/provider.cpp',
          'flamestore/src/server/server_module.cpp'
