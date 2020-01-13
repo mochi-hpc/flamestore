@@ -1,6 +1,7 @@
 #include <mutex>
 #include <map>
 #include <unordered_map>
+#include <algorithm>
 #include <spdlog/spdlog.h>
 #include <bake-client.hpp>
 #include "model.hpp"
@@ -12,10 +13,19 @@ namespace tl = thallium;
 
 class MochiBackend : public AbstractServerBackend {
 
-        struct model_impl {
-            std::vector<char> m_model_data;
-            tl::bulk          m_model_data_bulk;
+        struct location {
+            tl::endpoint          m_endpoint;
+            uint64_t              m_ssg_member_id;
+            bake::provider_handle m_phandle;
+            bake::target          m_target;
         };
+
+        struct model_impl {
+            std::weak_ptr<location> m_location;
+            bake::region            m_region;
+            std::size_t             m_size;
+        };
+
 
     public:
 
@@ -29,8 +39,10 @@ class MochiBackend : public AbstractServerBackend {
         spdlog::logger*                             m_logger;
         mutable tl::rwlock                          m_models_rwlock;
         std::map<name_t, std::unique_ptr<model_t>>  m_models;
-        std::unordered_map<uint64_t, tl::endpoint>  m_bake_phs;
         bake::client                                m_bake_client;
+
+        std::vector<std::shared_ptr<location>>      m_storage_locations;
+        tl::rwlock                                  m_storage_locations_lock;
 
         /**
          * @brief Finds a model with the provided name in the map.
@@ -143,36 +155,64 @@ REGISTER_FLAMESTORE_BACKEND("mochi",MochiBackend);
 
 void MochiBackend::on_shutdown()
 {
-    for(auto& p : m_bake_phs) {
-        auto& ep = p.second;
+    for(auto& l : m_storage_locations) {
+        auto& ep = l->m_endpoint;
         m_engine->shutdown_remote_engine(ep);
     }
 }
+
+//////////////////////////////////////////////////////////////////////////
+// SSG callbacks
+//////////////////////////////////////////////////////////////////////////
 
 void MochiBackend::on_worker_joined(uint64_t member_id, hg_addr_t addr)
 {
     tl::endpoint worker_ep(*m_engine, addr, false);
     m_logger->info("Mochi backend received new worker at address {}", (std::string)worker_ep);
-    m_bake_phs[member_id] = std::move(worker_ep);
 
     // query the new storage server for its Bake target(s)
     m_logger->debug("Querying new storage server for storage targets...");
     bake::provider_handle ph(m_bake_client, addr);
     std::vector<bake::target> targets = m_bake_client.probe(ph);
     m_logger->info("New storage server has {} target(s)", targets.size());
+
+    for(auto& tgt : targets) {
+        auto l = std::make_shared<location>();
+        l->m_endpoint = worker_ep;
+        l->m_ssg_member_id = member_id;
+        l->m_phandle = bake::provider_handle(m_bake_client, addr);
+        l->m_target = tgt;
+        m_storage_locations.push_back(std::move(l));
+    }
 }
 
 void MochiBackend::on_worker_left(uint64_t member_id)
 {
-    // TODO complete this function
-    m_bake_phs.erase(member_id);
+    m_storage_locations.erase(
+        std::remove_if( std::begin(m_storage_locations),
+                        std::end(m_storage_locations),
+                        [member_id](const std::shared_ptr<location>& l) {
+                            return l->m_ssg_member_id == member_id;
+                        }),
+        std::end(m_storage_locations)
+    );
 }
 
 void MochiBackend::on_worker_died(uint64_t member_id)
 {
-    // TODO complete this function
-    m_bake_phs.erase(member_id);
+    m_storage_locations.erase(
+        std::remove_if( std::begin(m_storage_locations),
+                        std::end(m_storage_locations),
+                        [member_id](const std::shared_ptr<location>& l) {
+                            return l->m_ssg_member_id == member_id;
+                        }),
+        std::end(m_storage_locations)
+    );
 }
+
+//////////////////////////////////////////////////////////////////////////
+// Client requests
+//////////////////////////////////////////////////////////////////////////
 
 void MochiBackend::register_model(
         const tl::request& req,
@@ -196,26 +236,33 @@ void MochiBackend::register_model(
     m_logger->info("Model \"{}\" created", model_name);
 
     lock_guard_t guard(model->m_mutex);
-    req.respond(Status::OK());
 
     m_logger->info("Registering model \"{}\"", model_name);
 
+    model->m_model_config    = std::move(model_config);
+    model->m_model_signature = std::move(model_signature);
+    model->m_impl.m_size     = model_size;
+
+    // select a location for the model
+    auto i = std::rand() % m_storage_locations.size();
+    m_logger->debug("Selecting storage target {}/{}", i+1, m_storage_locations.size());
+    auto loc = m_storage_locations[i];
+    model->m_impl.m_location = loc;
+
+    // allocate a region with the right size in Bake
     try {
-
-        model->m_model_config        = std::move(model_config);
-        model->m_model_signature     = std::move(model_signature);
-        model->m_impl.m_model_data.resize(model_size);
-
-        if(model->m_impl.m_model_data.size() != 0) {
-            std::vector<std::pair<void*, size_t>> model_data_ptr(1);
-            model_data_ptr[0].first  = (void*)(model->m_impl.m_model_data.data());
-            model_data_ptr[0].second = model->m_impl.m_model_data.size();
-            model->m_impl.m_model_data_bulk = m_engine->expose(model_data_ptr, tl::bulk_mode::read_write);
-        }
-
-    } catch(const tl::exception& e) {
-        m_logger->critical("Exception caught in flamestore_provider::on_register_model: {}", e.what());
+        m_logger->debug("Creating bake region of size {}", model_size);
+        auto region = m_bake_client.create(loc->m_phandle, loc->m_target, model_size);
+        m_logger->debug("Region successfuly created");
+        model->m_impl.m_region = region;
+    } catch(const bake::exception& ex) {
+        // TODO remove the model from the database since it wasn't properly created
+        m_logger->error("Bake region creation failed: {}", ex.what());
+        req.respond(Status(FLAMESTORE_EBAKE, "Bake region creation failed"));
+        return;
     }
+
+    req.respond(Status::OK());
 }
 
 void MochiBackend::reload_model(
@@ -263,7 +310,31 @@ void MochiBackend::write_model(
         m_logger->trace("Leaving write_model");
         return;
     }
-    model->m_impl.m_model_data_bulk << remote_bulk.on(req.get_endpoint());
+    m_logger->debug("Proxy-writing model {}", model_name);
+    auto loc = model->m_impl.m_location.lock();
+    // TODO check validity of loc
+    try {
+        m_bake_client.write(loc->m_phandle,
+                        model->m_impl.m_region,
+                        0,
+                        remote_bulk.get_bulk(),
+                        0,
+                        static_cast<std::string>(req.get_endpoint()),
+                        size);
+    } catch(const bake::exception& ex) {
+        m_logger->error("Failed to write in Bake: {}", ex.what());
+        req.respond(Status(FLAMESTORE_EBAKE, "Failed to write in Bake"));
+        return;
+    }
+    // persisting data
+    try {
+        m_bake_client.persist(loc->m_phandle,
+                            model->m_impl.m_region,
+                            0,
+                            size);
+    } catch(const bake::exception& ex) {
+        
+    }
     req.respond(Status::OK());
 }
 
@@ -294,7 +365,21 @@ void MochiBackend::read_model(
         return;
     }
     m_logger->info("Pushing data to model \"{}\"", model_name);
-    model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
+    auto loc = model->m_impl.m_location.lock();
+    // TODO check validity of loc
+    try {
+        m_bake_client.read(loc->m_phandle,
+                        model->m_impl.m_region,
+                        0,
+                        remote_bulk.get_bulk(),
+                        0,
+                        static_cast<std::string>(req.get_endpoint()),
+                        size);
+    } catch(const bake::exception& ex) {
+        m_logger->error("Failed to read from Bake: {}", ex.what());
+        req.respond(Status(FLAMESTORE_EBAKE, "Failed to read from Bake"));
+        return;
+    }
     req.respond(Status::OK());
 }
 

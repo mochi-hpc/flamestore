@@ -49,6 +49,7 @@ enum StatusCode {
     FLAMESTORE_EMKDIR     = 4,
     FLAMESTORE_EIO        = 5,
     FLAMESTORE_EBACKEND   = 6,
+    FLAMESTORE_EBAKE      = 7,
     FLAMESTORE_EOTHER
 };
 

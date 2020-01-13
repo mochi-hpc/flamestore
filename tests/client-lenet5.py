@@ -6,7 +6,6 @@ from pymargo.core import Engine
 import tensorflow
 from tensorflow.keras import backend as K
 import json
-#import tmci.checkpoint
 from flamestore.client import Client
 from flamestore import log
 import lenet5
@@ -26,9 +25,6 @@ def test(engine, connection_file):
     print('===> Training model')
     lenet5.train_model(model, dataset, batch_size=128, epochs=1)
     print('===> Saving model data')
-#    tmci_params = { 'model_name' : 'my_model', 'flamestore_client' : str(client) }
-#    tmci_params = json.dumps(tmci_params)
-#    tmci.checkpoint.save_weights(model, backend='flamestore', config=tmci_params, include_optimizer=opt)
     client.save_weights('my_model', model, include_optimizer=opt)
     print('===> Evaluating the model')
     score = lenet5.evaluate_model(model, dataset, verbose=0)
@@ -40,7 +36,6 @@ def test(engine, connection_file):
     print('===> Rebuilding model')
     lenet5.build_model(model)
     print('===> Reloading model data')
-#    tmci.checkpoint.load_weights(model, backend='flamestore', config=tmci_params, include_optimizer=opt)
     client.load_weights('my_model', model, include_optimizer=opt)
     print('===> Evaluating the stored model')
     score = lenet5.evaluate_model(model, dataset, verbose=0)
