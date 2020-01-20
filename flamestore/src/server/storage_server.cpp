@@ -94,6 +94,7 @@ void StorageServer::_init_ssg() {
         m_logger->critical("Could not initialize SSG (ssg_init returned error code {})", ret);
         throw std::runtime_error("Could not initialize SSG");
     }
+    m_logger->debug("SSG initialized");
     // Opening SSG group
     int num_addrs = 128;
     ret = ssg_group_id_load(filename.c_str(), &num_addrs, &m_ssg_gid);
@@ -101,6 +102,7 @@ void StorageServer::_init_ssg() {
         m_logger->critical("ssg_group_id_load failed with error code {}", ret);
         throw std::runtime_error("Could not load SSG group file");
     }
+    m_logger->debug("Successfuly loaded group id file {}", filename);
     // Join the group
     ret = ssg_group_join(m_engine.get_margo_instance(), m_ssg_gid,
             _ssg_membership_update, (void*)this);
@@ -108,6 +110,7 @@ void StorageServer::_init_ssg() {
         m_logger->critical("Could not join SSG group (ssg_group_join returned {})", ret);
         throw std::runtime_error("Could join SSG group");
     }
+    m_logger->debug("Successfuly joined group");
     // Get the member id of the master
     {
         std::ifstream f(master_id_filename);
