@@ -104,7 +104,7 @@ def run(args):
         sys.exit(0)
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
-    engine = Engine(protocol)
+    engine = Engine(protocol, use_progress_thread=True)
     logger.debug('Enabling remote shutdown')
     engine.enable_remote_shutdown()
     master = None
