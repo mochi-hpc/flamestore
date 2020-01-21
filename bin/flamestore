@@ -102,6 +102,10 @@ def run(args):
     if(not (args.master or args.storage)):
         logger.debug('No master or worker to run')
         sys.exit(0)
+    if(args.master):
+        from flamestore.server import MasterServer
+    if(args.storage):
+        from flamestore.server import StorageServer
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
     engine = Engine(protocol, use_progress_thread=True)
