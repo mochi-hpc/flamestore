@@ -4,7 +4,7 @@ export WALLTIME=00:10:00
 export PPN=1
 export PROCS=3
 
-TURBINE_DIRECTIVE="module load intelpython36/2019.3.075 
+export TURBINE_DIRECTIVE="module load intelpython36/2019.3.075 
 		   spack load -r flamestore" 
 
 WORKFLOW=workflow.swift
