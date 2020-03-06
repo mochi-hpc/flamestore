@@ -319,7 +319,7 @@ void MochiBackend::write_model(
                         0,
                         remote_bulk.get_bulk(),
                         0,
-                        static_cast<std::string>(req.get_endpoint()),
+                        client_addr,
                         size);
     } catch(const bake::exception& ex) {
         m_logger->error("Failed to write in Bake: {}", ex.what());
@@ -373,7 +373,7 @@ void MochiBackend::read_model(
                         0,
                         remote_bulk.get_bulk(),
                         0,
-                        static_cast<std::string>(req.get_endpoint()),
+                        client_addr,
                         size);
     } catch(const bake::exception& ex) {
         m_logger->error("Failed to read from Bake: {}", ex.what());
