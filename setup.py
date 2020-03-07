@@ -137,5 +137,5 @@ setup(name='flamestore',
       packages=['flamestore'],
       scripts=['bin/flamestore'],
       cmdclass={'install_headers': install_headers},
-      headers=['swift/flamestore.swift'] # swift file considered a header
+      headers=['swift/flamestore.swift.h'] # swift file considered a header
     )
