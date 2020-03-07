@@ -315,6 +315,7 @@ void MochiBackend::write_model(
     // TODO check validity of loc
     try {
         m_bake_client.write(loc->m_phandle,
+                        loc->m_target,
                         model->m_impl.m_region,
                         0,
                         remote_bulk.get_bulk(),
@@ -329,6 +330,7 @@ void MochiBackend::write_model(
     // persisting data
     try {
         m_bake_client.persist(loc->m_phandle,
+                            loc->m_target,
                             model->m_impl.m_region,
                             0,
                             size);
@@ -369,6 +371,7 @@ void MochiBackend::read_model(
     // TODO check validity of loc
     try {
         m_bake_client.read(loc->m_phandle,
+                        loc->m_target,
                         model->m_impl.m_region,
                         0,
                         remote_bulk.get_bulk(),
