@@ -23,6 +23,8 @@ class install_headers(install_headers_orig):
         self.install_dir = '/'.join(a)
         headers = self.distribution.headers or []
         for header in headers:
+            if 'swift' in header: # header in swift directory
+                header = header.replace('.h','.swift')
             self.mkpath(self.install_dir)
             (out, _) = self.copy_file(header, self.install_dir)
             self.outfiles.append(out)
@@ -137,5 +139,5 @@ setup(name='flamestore',
       packages=['flamestore'],
       scripts=['bin/flamestore'],
       cmdclass={'install_headers': install_headers},
-      headers=['swift/flamestore.swift.h'] # swift file considered a header
+      headers=['swift/flamestore.h'] # swift file considered a header
     )
