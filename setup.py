@@ -3,6 +3,7 @@ from distutils.extension import Extension
 from distutils.sysconfig import get_config_vars
 from distutils.command.build_clib import build_clib
 from distutils.command.build_ext import build_ext
+from distutils.command.install_headers import install_headers as install_headers_orig
 import json
 import pybind11
 import pkgconfig
@@ -10,6 +11,21 @@ import os
 import os.path
 import sys
 import tmci
+
+class install_headers(install_headers_orig):
+    """The install_headers command is redefined to
+    remove the "python3.Xm" in the installation path"""
+
+    def run(self):
+        a = self.install_dir.split('/')
+        if 'python' in a[-2]:
+            del a[-2]
+        self.install_dir = '/'.join(a)
+        headers = self.distribution.headers or []
+        for header in headers:
+            self.mkpath(self.install_dir)
+            (out, _) = self.copy_file(header, self.install_dir)
+            self.outfiles.append(out)
 
 src_dir = os.path.dirname(os.path.abspath(__file__)) + '/flamestore/src'
 
@@ -119,5 +135,6 @@ setup(name='flamestore',
                     flamestore_server_module,
                   ],
       packages=['flamestore'],
-      scripts=['bin/flamestore']
+      scripts=['bin/flamestore'],
+      headers=['swift/flamestore.swift'] # swift file considered a header
     )
