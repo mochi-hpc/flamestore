@@ -20,6 +20,8 @@ class install_headers(install_headers_orig):
         a = self.install_dir.split('/')
         if 'python' in a[-2]:
             del a[-2]
+        # delete also the last "flamestore" subdir
+        del a[-1]
         self.install_dir = '/'.join(a)
         headers = self.distribution.headers or []
         for header in headers:
