@@ -9,7 +9,7 @@ app (file out, file err) flamestore_run_storage (string workspace, string storag
 }
 
 app (file out, file err) flamestore_format_and_run_storage (string workspace, string storagepath, int size) {
-    "flamestore" "run" "--storage" "--debug" "--workspace" workspace "--path" storagepath "--size" size "--override" @stdout=out @stderr=err
+    "flamestore" "run" "--storage" "--debug" "--workspace" workspace "--format" "--path" storagepath "--size" size "--override" @stdout=out @stderr=err
 }
 
 app (file out, file err) flamestore_format_storage (string storagepath, int size) {
