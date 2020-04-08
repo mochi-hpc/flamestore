@@ -110,6 +110,20 @@ class Client(_flamestore_client.Client):
             model.optimizer = cls(**optimizer_config)
         return model
 
+    def duplicate_model(self, source_model_name, dest_model_name):
+        """This function requests the FlameStore backend to
+        duplicate a model (both architecture and data).
+        The new model name must not be already in use.
+
+        Args:
+            source_model_name (str): name of the model to duplicate
+            dest_model_name (str): name of the new model
+        """
+        status, message = self.__duplicate_model(source_model_name, dest_model_name)
+        if(status != 0):
+            logger.error(message)
+            raise RuntimeError(message)
+
     def __transfer_weights(self, model_name, model, include_optimizer, transfer):
         """Helper function that can save and load weights (the save and load
         functions must be passed as the "transfer" argument). Used by the

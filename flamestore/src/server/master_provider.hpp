@@ -133,6 +133,27 @@ class MasterProvider : public tl::provider<MasterProvider> {
         }
     }
 
+    /**
+     * @brief RPC called when a client duplicates a model.
+     *
+     * @param req Thallium request
+     * @param name Model name
+     * @param new_name Duplicated model name
+     */
+    void on_duplicate_model(
+            const tl::request& req,
+            const std::string& name,
+            const std::string& new_name)
+    {
+        m_logger->debug("Duplicating model {} as {}", name, new_name);
+        if(m_backend) {
+            m_backend->duplicate_model(req, name, new_name);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
     public:
 
     /**
@@ -150,6 +171,7 @@ class MasterProvider : public tl::provider<MasterProvider> {
         define("flamestore_reload_model",     &MasterProvider::on_reload_model);
         define("flamestore_write_model_data", &MasterProvider::on_write_model_data);
         define("flamestore_read_model_data",  &MasterProvider::on_read_model_data);
+        define("flamestore_dup_model",        &MasterProvider::on_duplicate_model);
         m_logger->debug("RPCs registered");
     }
 

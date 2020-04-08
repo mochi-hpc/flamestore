@@ -90,6 +90,11 @@ class AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) = 0;
 
+        virtual void duplicate_model(
+                const tl::request& req,
+                const std::string& model_name,
+                const std::string& new_model_name) = 0;
+
         virtual void on_shutdown() {}
 
         virtual void on_worker_joined(

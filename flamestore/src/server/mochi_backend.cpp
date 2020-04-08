@@ -138,6 +138,11 @@ class MochiBackend : public AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
 
+        virtual void duplicate_model(
+                const tl::request& req,
+                const std::string& model_name,
+                const std::string& new_model_name) override;
+
         virtual void on_shutdown() override;
 
         virtual void on_worker_joined(
@@ -384,6 +389,66 @@ void MochiBackend::read_model(
         return;
     }
     req.respond(Status::OK());
+}
+
+void MochiBackend::duplicate_model(
+        const tl::request& req,
+        const std::string& model_name,
+        const std::string& new_model_name)
+{
+    m_logger->info("Entering MochiBackend::duplicate_model");
+    auto model = _find_model(model_name);
+    if(model == nullptr) {
+        m_logger->error("Model \"{}\" does not exist", model_name);
+        req.respond(Status(
+                    FLAMESTORE_ENOEXISTS,
+                    "No model found with provided name"));
+        return;
+    }
+    bool created = false;
+    auto new_model = _find_or_create_model(new_model_name, created);
+    if(not created) {
+        m_logger->error("Model \"{}\" already exists", new_model_name);
+        req.respond(Status(
+                    FLAMESTORE_EEXISTS,
+                    "A model with the same name is already registered"));
+        m_logger->trace("Leaving flamestore_provider::on_duplicate_model");
+        return;
+    }
+    
+    new_model->m_model_config    = model->m_model_config;
+    new_model->m_model_signature = model->m_model_signature;
+    new_model->m_impl.m_size     = model->m_impl.m_size;
+
+    // find out where the source model is
+    auto loc = model->m_impl.m_location.lock();
+
+    // select a location for the model
+    auto i = std::rand() % m_storage_locations.size();
+    m_logger->debug("Selecting storage target {}/{}", i+1, m_storage_locations.size());
+    auto new_loc = m_storage_locations[i];
+    new_model->m_impl.m_location = loc;
+
+    // allocate a region with the right size in Bake for the new model
+    try {
+        m_logger->debug("Creating bake region of size {} my migrating existing region", new_model->m_impl.m_size);
+        std::string new_addr = tl::endpoint(*m_engine, new_loc->m_phandle.address());
+        auto region = m_bake_client.migrate(loc->m_phandle,
+                                            loc->m_target,
+                                            new_model->m_impl.m_region,
+                                            new_model->m_impl.m_size,
+                                            false,
+                                            new_addr,
+                                            new_loc->m_phandle.provider_id(),
+                                            new_loc->m_target);
+        m_logger->debug("Region successfuly created");
+        new_model->m_impl.m_region = region;
+    } catch(const bake::exception& ex) {
+        // TODO remove the model from the database since it wasn't properly created
+        m_logger->error("Bake region creation failed: {}", ex.what());
+        req.respond(Status(FLAMESTORE_EBAKE, "Bake region migration failed"));
+        return;
+    }
 }
 
 }

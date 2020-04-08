@@ -23,6 +23,7 @@ class Client {
     tl::remote_procedure        m_rpc_reload_model;
     tl::remote_procedure        m_rpc_write_model;
     tl::remote_procedure        m_rpc_read_model;
+    tl::remote_procedure        m_rpc_dup_model;
     tl::provider_handle         m_master_provider;
 
     public:
@@ -35,12 +36,18 @@ class Client {
         return *m_engine;
     }
 
+    /**
+     * @brief This function is exposed to Python.
+     */
     std::string get_id() const {
         std::stringstream ss;
         ss << reinterpret_cast<intptr_t>(this);
         return ss.str();
     }
 
+    /**
+     * @brief This function is used by TMCI.
+     */
     static Client* from_id(const std::string& id) {
         intptr_t iid;
         std::istringstream ss(id);
@@ -48,21 +55,40 @@ class Client {
         return reinterpret_cast<Client*>(iid);
     }
 
+    /**
+     * @brief This function is exposed to Python.
+     */
     return_status register_model(
             const std::string& model_name,
             const std::string& model_config,
             std::size_t model_data_size,
             const std::string& model_signature);
 
+    /**
+     * @brief This function is exposed to Python.
+     */
     return_status reload_model(
             const std::string& model_name);
 
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status duplicate_model(
+            const std::string& model_name,
+            const std::string& new_model_name);
+
+    /**
+     * This function is used by TMCI.
+     */
     return_status write_model_data(
             const std::string& model_name,
             const std::string& signature,
             std::vector<std::pair<void*,size_t>>& memory,
             const std::size_t& size);
 
+    /**
+     * This function is used by TMCI.
+     */
     return_status read_model_data(
             const std::string& model_name,
             const std::string& signature,

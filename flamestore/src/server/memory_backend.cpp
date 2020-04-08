@@ -121,6 +121,11 @@ class MemoryBackend : public AbstractServerBackend {
                 const std::string& model_signature,
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
+
+        virtual void duplicate_model(
+                const tl::request& req,
+                const std::string& model_name,
+                const std::string& new_model_name) override;
 };
 
 REGISTER_FLAMESTORE_BACKEND("master-memory",MemoryBackend);
@@ -246,6 +251,45 @@ void MemoryBackend::read_model(
     }
     m_logger->info("Pushing data to model \"{}\"", model_name);
     model->m_impl.m_model_data_bulk >> remote_bulk.on(req.get_endpoint());
+    req.respond(Status::OK());
+}
+
+void MemoryBackend::duplicate_model(
+        const tl::request& req,
+        const std::string& model_name,
+        const std::string& new_model_name)
+{
+    m_logger->info("Entering MemoryBackend::duplicate_model");
+    auto model = _find_model(model_name);
+    if(model == nullptr) {
+        m_logger->error("Model \"{}\" does not exist", model_name);
+        req.respond(Status(
+                    FLAMESTORE_ENOEXISTS,
+                    "No model found with provided name"));
+        return;
+    }
+    bool created = false;
+    auto new_model = _find_or_create_model(new_model_name, created);
+    if(not created) {
+        m_logger->error("Model \"{}\" already exists", new_model_name);
+        req.respond(Status(
+                    FLAMESTORE_EEXISTS,
+                    "A model with the same name is already registered"));
+        m_logger->trace("Leaving flamestore_provider::on_duplicate_model");
+        return;
+    }
+
+    lock_guard_t guard(model->m_mutex);
+    lock_guard_t guard2(new_model->m_mutex);
+    new_model->m_model_config = model->m_model_config;
+    new_model->m_model_signature = model->m_model_signature;
+    new_model->m_impl.m_model_data = model->m_impl.m_model_data;
+    if(new_model->m_impl.m_model_data.size() != 0) {
+        std::vector<std::pair<void*, size_t>> new_model_data_ptr(1);
+        new_model_data_ptr[0].first  = (void*)(new_model->m_impl.m_model_data.data());
+        new_model_data_ptr[0].second = new_model->m_impl.m_model_data.size();
+        new_model->m_impl.m_model_data_bulk = m_engine->expose(new_model_data_ptr, tl::bulk_mode::read_write);
+    }
     req.respond(Status::OK());
 }
 

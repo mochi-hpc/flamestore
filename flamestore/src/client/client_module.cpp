@@ -17,6 +17,8 @@ PYBIND11_MODULE(_flamestore_client, m) {
         .def("_register_model", &flamestore::Client::register_model,
                 "Registers a model.")
         .def("_reload_model", &flamestore::Client::reload_model,
-                "Reload a model.")
+                "Reloads a model.")
+        .def("_duplicate_model", &flamestore::Client::duplicate_model,
+                "Duplicates a model.")
         ;
 }

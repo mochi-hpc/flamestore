@@ -10,6 +10,7 @@ Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     , m_rpc_reload_model(m_engine->define("flamestore_reload_model"))
     , m_rpc_write_model(m_engine->define("flamestore_write_model_data"))
     , m_rpc_read_model(m_engine->define("flamestore_read_model_data"))
+    , m_rpc_dup_model(m_engine->define("flamestore_dup_model"))
 {
     std::ifstream ifs(connectionfile);
     if(!ifs.good())
@@ -77,6 +78,17 @@ Client::return_status Client::read_model_data(
             signature,
             local_bulk,
             size);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::duplicate_model(
+        const std::string& model_name,
+        const std::string& new_model_name)
+{
+    Status status = m_rpc_dup_model
+        .on(m_master_provider)(
+            model_name,
+            new_model_name);
     return status.move_to_pair();
 }
 
