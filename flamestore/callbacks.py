@@ -96,8 +96,8 @@ class RemoteCheckpointCallback(Callback):
 
         This method may checkpoint the model and optimizer.
         """
-        if 'epoch' in self.frequency:
-            if epoch % self.frequency['epoch'] == 0:
+        if 'epoch' in self._frequency:
+            if epoch % self._frequency['epoch'] == 0:
                 self._client.save_weights(self._model_name,
                         self.model,
                         include_optimizer=self._include_optimizer)
@@ -109,8 +109,8 @@ class RemoteCheckpointCallback(Callback):
         """Callback method called when a batch ends.
 
         This method may checkpoint the model and optimizer."""
-        if 'batch' in self.frequency:
-            if batch % self.frequency['batch'] == 0:
+        if 'batch' in self._frequency:
+            if batch % self._frequency['batch'] == 0:
                 self._client.save_weights(self._model_name,
                         self.model,
                         include_optimizer=self._include_optimizer)
