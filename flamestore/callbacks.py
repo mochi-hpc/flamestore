@@ -69,7 +69,7 @@ class RemoteCheckpointCallback(Callback):
             with open(self._workspace+'/.flamestore/config.json') as f:
                 config = json.loads(f.read())
                 protocol = config['protocol']
-                logger.debug("Protocol is {}", protocol)
+                logger.debug("Protocol is "+protocol)
                 logger.debug("Initializing pymargo engine")
                 self._engine = pymargo.core.Engine(protocol, 
                         use_progress_thread=True, mode=pymargo.server)
@@ -90,15 +90,15 @@ class RemoteCheckpointCallback(Callback):
         """
         logger.info("on_train_begin called")
         if(not self._restart):
-            logger.info("Registering model {}", self._model_name)
+            logger.info("Registering model "+self._model_name)
             self._client.register_model(self._model_name, self.model, include_optimizer=self._include_optimizer)
             logger.info("Model registered successfully")
         else:
             if(self._duplicate_from is not None):
-                logger.info("Duplicating model {} into model {}", self._duplicate_from, self._model_name)
+                logger.info("Duplicating model "+self._duplicate_from+" into model "+self._model_name)
                 self._client.duplicate_model(self._duplicate_from, self._model_name)
                 logger.info("Duplicated successfully")
-            logger.info("Loading weights into model {}", self._model_name)
+            logger.info("Loading weights into model "+self._model_name)
             self._client.load_weights(self._model_name, self.model, self._include_optimizer)
             logger.info("Weights loaded successfully")
 
@@ -128,7 +128,7 @@ class RemoteCheckpointCallback(Callback):
         logger.info("on_epoch_end called")
         if 'epoch' in self._frequency:
             if epoch % self._frequency['epoch'] == 0:
-                logger.info("Saving weights into model {}", self._model_name)
+                logger.info("Saving weights into model "+self._model_name)
                 self._client.save_weights(self._model_name,
                         self.model,
                         include_optimizer=self._include_optimizer)
@@ -145,7 +145,7 @@ class RemoteCheckpointCallback(Callback):
         logger.info("on_batch_end called")
         if 'batch' in self._frequency:
             if batch % self._frequency['batch'] == 0:
-                logger.info("Saving weights into model {}", self._model_name)
+                logger.info("Saving weights into model "+self._model_name)
                 self._client.save_weights(self._model_name,
                         self.model,
                         include_optimizer=self._include_optimizer)
