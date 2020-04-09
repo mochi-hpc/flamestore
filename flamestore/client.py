@@ -9,7 +9,7 @@ import tensorflow.keras.optimizers as optimizers
 from . import util
 import spdlog
 
-logger = spdlog.ConsoleLogger("FlameStore")
+logger = spdlog.ConsoleLogger("flamestore.client")
 logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
 
 class Client(_flamestore_client.Client):
