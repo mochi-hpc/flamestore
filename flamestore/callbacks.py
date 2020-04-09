@@ -149,4 +149,4 @@ class RemoteCheckpointCallback(Callback):
                 self._client.save_weights(self._model_name,
                         self.model,
                         include_optimizer=self._include_optimizer)
-                logger.info("Weights loaded successfully")
+                logger.info("Weights saved successfully")
