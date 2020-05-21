@@ -6,6 +6,7 @@ namespace flamestore {
 Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     : m_engine(std::make_shared<tl::engine>(CAPSULE2MID(mid)))
     , m_client_addr(m_engine->self())
+    , m_rpc_shutdown(m_engine->define("flamestore_shutdown"))
     , m_rpc_register_model(m_engine->define("flamestore_register_model"))
     , m_rpc_reload_model(m_engine->define("flamestore_reload_model"))
     , m_rpc_write_model(m_engine->define("flamestore_write_model_data"))
@@ -19,6 +20,13 @@ Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     ifs >> master_provider_address;
     auto endpoint = m_engine->lookup(master_provider_address);
     m_master_provider = tl::provider_handle(endpoint, 0);
+}
+
+Client::return_status Client::shutdown()
+{
+    Status status = m_rpc_shutdown
+        .on(m_master_provider)();
+    return status.move_to_pair();
 }
 
 Client::return_status Client::register_model(

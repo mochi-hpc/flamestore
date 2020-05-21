@@ -19,6 +19,7 @@ class Client {
 
     std::shared_ptr<tl::engine> m_engine;
     std::string                 m_client_addr;
+    tl::remote_procedure        m_rpc_shutdown;
     tl::remote_procedure        m_rpc_register_model;
     tl::remote_procedure        m_rpc_reload_model;
     tl::remote_procedure        m_rpc_write_model;
@@ -34,6 +35,11 @@ class Client {
 
     tl::engine& engine() {
         return *m_engine;
+    }
+
+    void cleanup_hg_resources() {
+        m_master_provider = tl::provider_handle();
+        m_engine.reset();
     }
 
     /**
@@ -54,6 +60,11 @@ class Client {
         ss >> iid;
         return reinterpret_cast<Client*>(iid);
     }
+
+    /**
+     * @brief Shuts down FlameStore.
+     */
+    return_status shutdown();
 
     /**
      * @brief This function is exposed to Python.

@@ -88,7 +88,7 @@ def __finalize_worker(worker, ws_path):
 def run(args):
     from pymargo.core import Engine
     if(args.debug):
-        logger.set_level(spdlog.LogLevel.DEBUG)
+        logger.set_level(spdlog.LogLevel.TRACE)
     ws_path = os.path.abspath(args.workspace)
     if(not is_workspace(ws_path)):
         fatal(ws_path+' is not a FlameStore workspace')
@@ -154,11 +154,18 @@ def shutdown(args):
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
     engine = Engine(protocol, mode=pymargo.core.client)
-    logger.debug('Looking up address '+address)
-    endpoint = engine.lookup(address)
-    logger.info('Shutting down FlameStore')
-    endpoint.shutdown()
-    del endpoint
+    if(len(args.storage) != 0):
+        logger.debug('Looking up address '+address)
+        endpoint = engine.lookup(address)
+        logger.info('Shutting down FlameStore storage server')
+        endpoint.shutdown()
+        del endpoint
+    else:
+        logger.info('Shutting down FlameStore')
+        from flamestore.admin import Admin
+        admin = Admin(engine=engine, workspace=ws_path)
+        admin.shutdown()
+        del admin
     engine.finalize()
     
 # ==================================================================== #

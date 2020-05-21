@@ -3,7 +3,7 @@ import _flamestore_client
 import json
 import os.path
 from functools import reduce
-from tensorflow.keras import backend as K
+
 from tensorflow.keras.models import model_from_json
 import tensorflow.keras.optimizers as optimizers
 from . import util
@@ -12,10 +12,11 @@ import spdlog
 logger = spdlog.ConsoleLogger("flamestore.client")
 logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
 
+
 class Client(_flamestore_client.Client):
     """Client class allowing access to FlameStore providers."""
 
-    def __init__(self, engine, workspace='.'):
+    def __init__(self, engine=None, workspace='.'):
         """Constructor.
 
         Args:
@@ -27,8 +28,24 @@ class Client(_flamestore_client.Client):
             logger.critical('Directory is not a FlameStore workspace')
             raise RuntimeError('Directory is not a FlameStore workspace')
         connectionfile = path + '/.flamestore/master'
-        super().__init__(engine._mid, connectionfile)
+        if(engine is None):
+            import pymargo
+            import pymargo.core
+            with open(path+'/.flamestore/config.json') as f:
+                config = json.loads(f.read())
+            protocol = config['protocol']
+            self._engine = pymargo.core.Engine(
+                protocol,
+                use_progress_thread=True,
+                mode=pymargo.server)
+        else:
+            self._engine = engine
+        super().__init__(self._engine._mid, connectionfile)
         logger.debug('Creating a Client for workspace '+path)
+
+    def __del__(self):
+        self._cleanup_hg_resources()
+        del self._engine
 
     def register_model(self,
                        model_name,
@@ -43,7 +60,7 @@ class Client(_flamestore_client.Client):
             model (keras Model): model.
             include_optimizer (bool): whether to register the optimizer.
         """
-        model_config = { 'model' : model.to_json() }
+        model_config = {'model': model.to_json()}
         if(include_optimizer):
             model_config['optimizer'] = json.dumps({
                 'name': type(model.optimizer).__name__,
@@ -102,7 +119,8 @@ class Client(_flamestore_client.Client):
         if(include_optimizer):
             optimizer_config = json.loads(config['optimizer'])
             if(optimizer_config is None):
-                raise RuntimeError('Requested model wasn\'t stored with its optimizer')
+                raise RuntimeError(
+                    'Requested model wasn\'t stored with its optimizer')
             optimizer_name = optimizer_config['name']
             optimizer_config = optimizer_config['config']
             logger.debug('Rebuilding optimizer')
@@ -119,16 +137,19 @@ class Client(_flamestore_client.Client):
             source_model_name (str): name of the model to duplicate
             dest_model_name (str): name of the new model
         """
-        status, message = self.__duplicate_model(source_model_name, dest_model_name)
+        status, message = self._duplicate_model(
+            source_model_name,
+            dest_model_name)
         if(status != 0):
             logger.error(message)
             raise RuntimeError(message)
 
-    def __transfer_weights(self, model_name, model, include_optimizer, transfer):
+    def __transfer_weights(self, model_name, model,
+                           include_optimizer, transfer):
         """Helper function that can save and load weights (the save and load
         functions must be passed as the "transfer" argument). Used by the
         save_weights and load_weights methods.
-        
+
         Args:
             model_name (str): name of the model.
             model (keras.Model): model to transfer.
@@ -141,9 +162,9 @@ class Client(_flamestore_client.Client):
             model_signature = util._compute_signature(model, model.optimizer)
         else:
             model_signature = util._compute_signature(model)
-        tmci_params = { 'model_name' : model_name,
-                        'flamestore_client' : self._get_id(),
-                        'signature' : model_signature }
+        tmci_params = {'model_name': model_name,
+                       'flamestore_client': self._get_id(),
+                       'signature': model_signature}
         transfer(model, backend='flamestore',
                  config=json.dumps(tmci_params),
                  include_optimizer=include_optimizer)
@@ -156,7 +177,7 @@ class Client(_flamestore_client.Client):
             model (keras.Model): model from which to save the weights.
             include_optimizer (bool): whether to include the model's optimizer.
         """
-        self.__transfer_weights(model_name, model, include_optimizer, 
+        self.__transfer_weights(model_name, model, include_optimizer,
                                 tmci.checkpoint.save_weights)
 
     def load_weights(self, model_name, model, include_optimizer=True):
@@ -169,5 +190,5 @@ class Client(_flamestore_client.Client):
             include_optimizer (bool): whether to include the model's optimizer.
         """
         model._make_train_function()
-        self.__transfer_weights(model_name, model, include_optimizer, 
+        self.__transfer_weights(model_name, model, include_optimizer,
                                 tmci.checkpoint.load_weights)

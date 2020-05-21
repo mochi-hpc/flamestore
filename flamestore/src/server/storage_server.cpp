@@ -36,11 +36,13 @@ StorageServer::StorageServer(pymargo_instance_id mid,
     _init_ssg();
     // Setting up the finalize callbacks
     m_engine.push_prefinalize_callback([this]() {
+            m_logger->debug("Pre-finalizing");
             _finalize_ssg();
+            m_logger->debug("Done finalizing SSG");
         });
     m_engine.push_finalize_callback([this]() {
-            m_logger->trace("Finalizing...");
-            m_logger->trace("MasterProvider destroyed");
+            m_logger->debug("Finalizing...");
+            m_logger->debug("StorageProvider destroyed");
         });
     m_engine.enable_remote_shutdown();
 }

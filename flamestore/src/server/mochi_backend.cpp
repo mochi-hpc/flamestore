@@ -160,10 +160,23 @@ REGISTER_FLAMESTORE_BACKEND("mochi",MochiBackend);
 
 void MochiBackend::on_shutdown()
 {
+    m_logger->debug("Asking all storage servers to shut down");
+    m_storage_locations_lock.wrlock();
     for(auto& l : m_storage_locations) {
         auto& ep = l->m_endpoint;
         m_engine->shutdown_remote_engine(ep);
     }
+    m_storage_locations_lock.unlock();
+    while(true){
+        m_storage_locations_lock.rdlock();
+        auto x = m_storage_locations.size();
+        m_storage_locations_lock.unlock();
+        if(x == 0)
+            break;
+        else
+            tl::thread::sleep(*m_engine, 100);
+    }
+    m_logger->debug("All storage servers have shut down");
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -431,12 +444,12 @@ void MochiBackend::duplicate_model(
 
     // allocate a region with the right size in Bake for the new model
     try {
-        m_logger->debug("Creating bake region of size {} my migrating existing region", new_model->m_impl.m_size);
+        m_logger->debug("Creating bake region of size {} by migrating existing region", new_model->m_impl.m_size);
         std::string new_addr = tl::endpoint(*m_engine, new_loc->m_phandle.address());
         auto region = m_bake_client.migrate(loc->m_phandle,
                                             loc->m_target,
-                                            new_model->m_impl.m_region,
-                                            new_model->m_impl.m_size,
+                                            model->m_impl.m_region,
+                                            model->m_impl.m_size,
                                             false,
                                             new_addr,
                                             new_loc->m_phandle.provider_id(),
@@ -449,6 +462,7 @@ void MochiBackend::duplicate_model(
         req.respond(Status(FLAMESTORE_EBAKE, "Bake region migration failed"));
         return;
     }
+    req.respond(Status::OK());
 }
 
 }

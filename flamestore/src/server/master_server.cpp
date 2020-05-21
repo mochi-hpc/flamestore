@@ -30,7 +30,7 @@ MasterServer::MasterServer(pymargo_instance_id mid,
     // Setting up the finalize callbacks
     m_engine.push_prefinalize_callback([this]() {
             m_logger->trace("Pre-finalizing...");
-            m_provider->backend()->on_shutdown();
+//            m_provider->backend()->on_shutdown();
             _ssg_finalize();
             });
     m_engine.push_finalize_callback([this]() {

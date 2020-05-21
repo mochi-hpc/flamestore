@@ -133,12 +133,30 @@ flamestore_client_module = Extension('_flamestore_client',
         extra_compile_args=cxxflags,
         depends=[])
 
+flamestore_admin_module_libraries     = thallium['libraries']       \
+                                      + jsoncpp['libraries']
+flamestore_admin_module_library_dirs = thallium['library_dirs']    \
+                                      + jsoncpp['library_dirs']
+flamestore_admin_module_include_dirs = thallium['include_dirs']    \
+                                      + [ src_dir ]                 \
+                                      + jsoncpp['include_dirs']
+flamestore_admin_module = Extension('_flamestore_admin',
+        ['flamestore/src/admin/admin.cpp',
+         'flamestore/src/admin/admin_module.cpp'],
+        libraries=flamestore_admin_module_libraries,
+        library_dirs=flamestore_admin_module_library_dirs,
+        runtime_library_dirs=flamestore_admin_module_library_dirs,
+        include_dirs=flamestore_admin_module_include_dirs,
+        extra_compile_args=cxxflags,
+        depends=[])
+
 setup(name='flamestore',
       version='0.3',
       author='Matthieu Dorier',
       description='''Mochi service to store and load tensorflow models''',
       ext_modules=[ flamestore_client_module,
                     flamestore_server_module,
+                    flamestore_admin_module,
                   ],
       packages=['flamestore'],
       scripts=['bin/flamestore'],

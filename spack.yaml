@@ -8,9 +8,11 @@ spack:
   - py-pkgconfig
   - py-mochi-tmci
   - py-spdlog
+  - py-mochi-margo
+  - mochi-margo@master
   - mochi-thallium
-  - py-mochi-bake
-  - mochi-bake@master
-  - mochi-sdskv@master
+  - mochi-sdskv
   - mochi-ssg
+  - mochi-bake@master
+  - py-mochi-bake
   concretization: together

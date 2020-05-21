@@ -31,6 +31,17 @@ class MasterProvider : public tl::provider<MasterProvider> {
     spdlog::logger* m_logger = nullptr;
     std::unique_ptr<AbstractServerBackend> m_backend;
 
+
+    void on_shutdown(const tl::request& req)
+    {
+        m_logger->debug("Received a request to shut down");
+        if(m_backend) {
+            m_backend->on_shutdown();
+        }
+        get_engine().finalize();
+        req.respond(Status::OK());
+    }
+
     /**
      * @brief RPC called when a client registers a model.
      *
@@ -167,6 +178,7 @@ class MasterProvider : public tl::provider<MasterProvider> {
     : tl::provider<MasterProvider>(engine, provider_id)
     , m_logger(logger) {
         m_logger->debug("Registering RPCs on MasterProvider with provider id {}", provider_id);
+        define("flamestore_shutdown",         &MasterProvider::on_shutdown);
         define("flamestore_register_model",   &MasterProvider::on_register_model);
         define("flamestore_reload_model",     &MasterProvider::on_reload_model);
         define("flamestore_write_model_data", &MasterProvider::on_write_model_data);

@@ -10,15 +10,15 @@ PYBIND11_MODULE(_flamestore_client, m) {
         .def("_get_id", &flamestore::Client::get_id,
                 "Gets and identifier to the client that "
                 "can be used to retrieve the client back in C++.")
-#if 0
         .def("shutdown", &flamestore::Client::shutdown,
                 "Shuts down the FlameStore service.")
-#endif
         .def("_register_model", &flamestore::Client::register_model,
                 "Registers a model.")
         .def("_reload_model", &flamestore::Client::reload_model,
                 "Reloads a model.")
         .def("_duplicate_model", &flamestore::Client::duplicate_model,
                 "Duplicates a model.")
+        .def("_cleanup_hg_resources", &flamestore::Client::cleanup_hg_resources,
+                "Cleanup internal HG resources")
         ;
 }
