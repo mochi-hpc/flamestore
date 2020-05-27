@@ -79,7 +79,7 @@ def load_dataset(train_file=None, test_file=None,
     return result
 
 
-def create_model(img_shape=(64, 64), num_classes=6, dropout=0.7):
+def create_model(img_shape=(64, 64), num_classes=6, dropout=0.1):
     """
     Creates the model with either a ResNet50 base of a VGG16 base.
     If trainable is set to a number X, only the last X layers will

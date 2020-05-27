@@ -16,12 +16,9 @@ class MochiBackend : public tmci::Backend {
     public:
 
     MochiBackend(const char* config) {
-        std::cout << "[FlameStore] MochiBackend constructor" << std::endl;
         std::stringstream ss(config);
         Json::Value root;
         ss >> root;
-        std::cout << "model name is " << root["model_name"].asString() << std::endl;
-        std::cout << "flamestore client is " << root["flamestore_client"].asString() << std::endl;
         m_client = Client::from_id(root["flamestore_client"].asString());
         m_model_name = root["model_name"].asString();
         m_signature = root["signature"].asString();
@@ -30,7 +27,6 @@ class MochiBackend : public tmci::Backend {
     ~MochiBackend() = default;
 
     virtual int Save(const std::vector<std::reference_wrapper<const tensorflow::Tensor>>& tensors) {
-        std::cout << "[FlameStore] Saving " << tensors.size() << " tensors:" << std::endl;
         // TODO check that m_client is valid
         std::vector<std::pair<void*,size_t>> segments;
         segments.reserve(tensors.size());
@@ -43,7 +39,6 @@ class MochiBackend : public tmci::Backend {
         return status.first;
     }
     virtual int Load(const std::vector<std::reference_wrapper<const tensorflow::Tensor>>& tensors) {
-        std::cout << "[FlameStore] Loading " << tensors.size() << " tensors:" << std::endl;
         // TODO check that m_client is valid
         std::vector<std::pair<void*,size_t>> segments;
         segments.reserve(tensors.size());

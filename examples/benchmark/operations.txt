@@ -1,3 +1,3 @@
-CREATE modelA 8 128     # create a modelA with 8 layers of 128 neurons each (132096 parameters)
-DUPLICATE modelA modelB # duplicate modelA into modelB
-LOAD modelB             # load modelB
+CREATE model_$ 8 128                # create a model with 8 layers of 128 neurons each (132096 parameters)
+DUPLICATE model_$ model_$_duplicate # duplicate model
+LOAD model_$_duplicate              # load model

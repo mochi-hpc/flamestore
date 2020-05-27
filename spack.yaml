@@ -15,4 +15,5 @@ spack:
   - mochi-ssg
   - mochi-bake@master
   - py-mochi-bake
+  - py-mpi4py
   concretization: together
