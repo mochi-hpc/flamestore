@@ -1,6 +1,5 @@
 import sys
 import random
-import logging
 from tensorflow.keras import backend as K
 from flamestore.client import Client
 from models import lenet5
@@ -10,9 +9,9 @@ def create_and_train_new_model(workspace, dataset):
     print('===> Creating FlameStore client')
     client = Client(workspace=workspace)
     print('===> Creating Keras model')
-    model = lenet5.create_model(dataset['input_shape'], dataset['num_classes'])
+    model = resnet50.create_model()
     print('===> Building model')
-    lenet5.build_model(model)
+    resnet50.build_model(model)
     print('===> Registering model')
     client.register_model('my_model', model, include_optimizer=True)
     print('===> Training model')

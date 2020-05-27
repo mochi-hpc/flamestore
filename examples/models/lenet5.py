@@ -1,17 +1,14 @@
 from __future__ import print_function
-import sys
+import random
 import os
 os.environ['KERAS_BACKEND'] = 'tensorflow'
-import shutil
-import random
 from tensorflow import keras
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
-from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
-import tensorflow as tf
+
 
 def create_model(input_shape, num_classes):
     """
@@ -25,9 +22,9 @@ def create_model(input_shape, num_classes):
     """
     model = Sequential()
     model.add(Conv2D(32, kernel_size=(3, 3),
-                            activation='relu',
-                            input_shape=input_shape,
-                            name='conv2d_1'))
+                     activation='relu',
+                     input_shape=input_shape,
+                     name='conv2d_1'))
     model.add(Conv2D(64, (3, 3), activation='relu', name='conv2d_2'))
     model.add(MaxPooling2D(pool_size=(2, 2), name='maxpooling2d_1'))
     model.add(Dropout(0.25, name='dropout_1'))
@@ -36,6 +33,7 @@ def create_model(input_shape, num_classes):
     model.add(Dropout(0.5, name='dropout_2'))
     model.add(Dense(num_classes, activation='softmax', name='dense_2'))
     return model
+
 
 def load_dataset():
     """
@@ -60,12 +58,13 @@ def load_dataset():
     x_test /= 255
     y_train = keras.utils.to_categorical(y_train, num_classes)
     y_test = keras.utils.to_categorical(y_test, num_classes)
-    return { 'x_train' : x_train,
-             'y_train' : y_train,
-             'x_test'  : x_test,
-             'y_test'  : y_test,
-             'input_shape' : input_shape,
-             'num_classes' : num_classes }
+    return {'x_train': x_train,
+            'y_train': y_train,
+            'x_test': x_test,
+            'y_test': y_test,
+            'input_shape': input_shape,
+            'num_classes': num_classes}
+
 
 def build_model(model, optimizer=None):
     """
@@ -74,10 +73,12 @@ def build_model(model, optimizer=None):
     if optimizer is None:
         optimizer = 'Adam'
     model.compile(loss=keras.losses.categorical_crossentropy,
-            optimizer=optimizer,
-             metrics=['accuracy'])
+                  optimizer=optimizer,
+                  metrics=['accuracy'])
 
-def train_model(model, dataset, batch_size, epochs, output_name=None, verbose=1, callbacks=[]):
+
+def train_model(model, dataset, batch_size, epochs,
+                output_name=None, verbose=1, callbacks=[]):
     """
     This function trains the provided model on the given dataset with
     a given batch size and number of epochs. If output_name is provided,
@@ -85,10 +86,11 @@ def train_model(model, dataset, batch_size, epochs, output_name=None, verbose=1,
     checkpoint the model at every batch.
     """
     model.fit(dataset['x_train'], dataset['y_train'],
-            batch_size=batch_size,
-            epochs=epochs,
-            verbose=verbose,
-            callbacks=callbacks)
+              batch_size=batch_size,
+              epochs=epochs,
+              verbose=verbose,
+              callbacks=callbacks)
+
 
 def evaluate_model(model, dataset, verbose=1):
     """
@@ -98,8 +100,10 @@ def evaluate_model(model, dataset, verbose=1):
     The function will return a dictionary mapping the model's name to
     a score composed of [ loss, accuracy ].
     """
-    score = model.evaluate(dataset['x_test'], dataset['y_test'], verbose=verbose)
+    score = model.evaluate(dataset['x_test'], dataset['y_test'],
+                           verbose=verbose)
     return score
+
 
 if __name__ == '__main__':
     random.seed(1234)
