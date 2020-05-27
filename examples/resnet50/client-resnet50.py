@@ -2,7 +2,7 @@ import sys
 import random
 from tensorflow.keras import backend as K
 from flamestore.client import Client
-from models import resnet50
+import resnet50
 
 
 def __load_dataset():
