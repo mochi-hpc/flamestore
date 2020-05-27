@@ -1,7 +1,6 @@
 import _flamestore_admin
 import json
 import os.path
-from . import util
 import spdlog
 
 logger = spdlog.ConsoleLogger("flamestore.admin")

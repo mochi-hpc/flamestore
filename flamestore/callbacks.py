@@ -1,11 +1,11 @@
 from tensorflow.keras.callbacks import Callback
-from tensorflow.keras import backend as K
 import json
-
 import spdlog
+
 
 logger = spdlog.ConsoleLogger("flamestore.callbacks")
 logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
+
 
 class RemoteCheckpointCallback(Callback):
     """Callback class that periodically checkpoints
@@ -50,16 +50,16 @@ class RemoteCheckpointCallback(Callback):
               a ValueError exception will be raised when training starts.
         """
         super()
-        self._model_name        = model_name
-        self._client            = client
+        self._model_name = model_name
+        self._client = client
         self._include_optimizer = include_optimizer
-        self._frequency         = frequency
-        self._restart           = restart
-        self._duplicate_from    = duplicate_from
-        self._engine            = engine
-        self._workspace         = workspace
-        self._owns_engine       = False
-        self._owns_client       = False
+        self._frequency = frequency
+        self._restart = restart
+        self._duplicate_from = duplicate_from
+        self._engine = engine
+        self._workspace = workspace
+        self._owns_engine = False
+        self._owns_client = False
         if(self._engine is None and self._client is None):
             self._owns_engine = True
             logger.debug("Importing pymargo")
@@ -71,8 +71,8 @@ class RemoteCheckpointCallback(Callback):
                 protocol = config['protocol']
                 logger.debug("Protocol is "+protocol)
                 logger.debug("Initializing pymargo engine")
-                self._engine = pymargo.core.Engine(protocol, 
-                        use_progress_thread=True, mode=pymargo.server)
+                self._engine = pymargo.core.Engine(
+                    protocol, use_progress_thread=True, mode=pymargo.server)
                 logger.debug("Engine initialized")
         if(self._client is None):
             self._owns_client = True
@@ -88,18 +88,24 @@ class RemoteCheckpointCallback(Callback):
         initializes the Tensorflow operations required to send
         the model's and optimizer's tensors periodically.
         """
-        logger.info("on_train_begin called")
+        logger.debug("on_train_begin called")
         if(not self._restart):
             logger.info("Registering model "+self._model_name)
-            self._client.register_model(self._model_name, self.model, include_optimizer=self._include_optimizer)
+            self._client.register_model(
+                self._model_name, self.model,
+                include_optimizer=self._include_optimizer)
             logger.info("Model registered successfully")
         else:
             if(self._duplicate_from is not None):
-                logger.info("Duplicating model "+self._duplicate_from+" into model "+self._model_name)
-                self._client.duplicate_model(self._duplicate_from, self._model_name)
+                logger.info("Duplicating model " + self._duplicate_from
+                            + " into model " + self._model_name)
+                self._client.duplicate_model(self._duplicate_from,
+                                             self._model_name)
                 logger.info("Duplicated successfully")
-            logger.info("Loading weights into model "+self._model_name)
-            self._client.load_weights(self._model_name, self.model, self._include_optimizer)
+            logger.info("Loading weights into model " + self._model_name)
+            self._client.load_weights(self._model_name,
+                                      self.model,
+                                      self._include_optimizer)
             logger.info("Weights loaded successfully")
 
     def on_train_end(self, logs={}):
@@ -108,7 +114,7 @@ class RemoteCheckpointCallback(Callback):
         This method destroyes the Tensorflow operations
         used to checkpoint tensors.
         """
-        logger.info("on_train_end called")
+        logger.debug("on_train_end called")
         if(self._owns_client):
             del self._client
             self._client = None
@@ -118,35 +124,35 @@ class RemoteCheckpointCallback(Callback):
 
     def on_epoch_begin(self, epoch, logs={}):
         """Callback method called when an epoch starts."""
-        logger.info("on_epoch_begin called")
+        logger.debug("on_epoch_begin called")
 
     def on_epoch_end(self, epoch, logs={}):
         """Callback method called when an epoch ends.
 
         This method may checkpoint the model and optimizer.
         """
-        logger.info("on_epoch_end called")
+        logger.debug("on_epoch_end called")
         if 'epoch' in self._frequency:
             if epoch % self._frequency['epoch'] == 0:
                 logger.info("Saving weights into model "+self._model_name)
-                self._client.save_weights(self._model_name,
-                        self.model,
-                        include_optimizer=self._include_optimizer)
+                self._client.save_weights(
+                    self._model_name, self.model,
+                    include_optimizer=self._include_optimizer)
                 logger.info("Weights loaded successfully")
 
     def on_batch_begin(self, batch, logs={}):
         """Callback method called when a batch begins."""
-        logger.info("on_batch_begin called")
+        logger.debug("on_batch_begin called")
 
     def on_batch_end(self, batch, logs={}):
         """Callback method called when a batch ends.
 
         This method may checkpoint the model and optimizer."""
-        logger.info("on_batch_end called")
+        logger.debug("on_batch_end called")
         if 'batch' in self._frequency:
             if batch % self._frequency['batch'] == 0:
                 logger.info("Saving weights into model "+self._model_name)
-                self._client.save_weights(self._model_name,
-                        self.model,
-                        include_optimizer=self._include_optimizer)
+                self._client.save_weights(
+                    self._model_name, self.model,
+                    include_optimizer=self._include_optimizer)
                 logger.info("Weights saved successfully")

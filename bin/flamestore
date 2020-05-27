@@ -10,15 +10,18 @@ WKSPACE_DIR = '/.flamestore'
 MASTER_FILE = WKSPACE_DIR + '/master'
 CONFIG_FILE = WKSPACE_DIR + '/config.json'
 
-logger = spdlog.ConsoleLogger("FlameStore") 
+logger = spdlog.ConsoleLogger("FlameStore")
 logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
+
 
 def fatal(msg, add_new_line=True):
     logger.error(msg)
     sys.exit(-1)
 
+
 def is_workspace(ws_path):
     return os.path.isdir(ws_path+WKSPACE_DIR)
+
 
 # ==================================================================== #
 # Create FlameStore workspace
@@ -28,8 +31,8 @@ def create(args):
         logger.set_level(spdlog.LogLevel.DEBUG)
     ws_path = args.workspace
     workspace_config = {
-            'protocol' : args.protocol,
-            'backend' : args.backend,
+        'protocol': args.protocol,
+        'backend': args.backend,
     }
     if(not os.path.exists(ws_path) or not os.path.isdir(ws_path)):
         fatal('Path doesn\'t exist or is not a directory.')
@@ -44,24 +47,29 @@ def create(args):
         logger.debug('Creating config.json in '+ws_path+WKSPACE_DIR)
         f.write(json.dumps(workspace_config, indent=2))
     if(reinit):
-        logger.info('Reinitialized FlameStore workspace ('+ws_path+WKSPACE_DIR+')')
+        logger.info('Reinitialized FlameStore workspace ('
+                    + ws_path + WKSPACE_DIR + ')')
     else:
-        logger.info('Initialized FlameStore workspace ('+ws_path+WKSPACE_DIR+')')
+        logger.info('Initialized FlameStore workspace ('
+                    + ws_path + WKSPACE_DIR + ')')
+
 
 # ==================================================================== #
 # Run FlameStore instances
 # ==================================================================== #
-
 def __run_master(engine, ws_path, config):
     from flamestore.server import MasterServer
     loglevel = config.get('loglevel', 1)
-    backend  = config.get('backend', 'master-memory')
-    master = MasterServer(engine, workspace=ws_path, config={}, loglevel=loglevel, backend=backend)
+    backend = config.get('backend', 'master-memory')
+    master = MasterServer(engine, workspace=ws_path, config={},
+                          loglevel=loglevel, backend=backend)
     info = master.get_connection_info()
-    logger.debug('Creating master connection information at '+ws_path+MASTER_FILE)
+    logger.debug('Creating master connection information at '
+                 + ws_path + MASTER_FILE)
     with open(ws_path+MASTER_FILE, 'w+') as f:
         f.write(info)
     return master
+
 
 def __finalize_master(master, ws_path):
     if(master is None):
@@ -70,20 +78,24 @@ def __finalize_master(master, ws_path):
         logger.debug('Removing master connection information')
         os.remove(ws_path+MASTER_FILE)
 
+
 def __run_worker(engine, ws_path, config, storage_path):
-#    if(config['backend'] == 'master-memory'):
-#        fatal('Memory backend does\'t have workers')
+    #    if(config['backend'] == 'master-memory'):
+    #        fatal('Memory backend does\'t have workers')
     from flamestore.server import StorageServer
     loglevel = config.get('loglevel', 1)
-    backend  = config.get('backend', 'master-memory')
-    worker = StorageServer(engine, workspace=ws_path, 
-                config = { 'storage-path' : storage_path },
-                loglevel=loglevel, backend=backend)
-    return worker 
+    backend = config.get('backend', 'master-memory')
+    worker = StorageServer(
+        engine, workspace=ws_path,
+        config={'storage-path': storage_path},
+        loglevel=loglevel, backend=backend)
+    return worker
+
 
 def __finalize_worker(worker, ws_path):
     if(worker is None):
         return
+
 
 def run(args):
     from pymargo.core import Engine
@@ -97,17 +109,14 @@ def run(args):
         logger.debug('Opening config file '+configfile)
         with open(configfile) as f:
             config = json.loads(f.read())
-    except:
+    except Exception:
         fatal('Could not open file '+configfile)
     if(not (args.master or args.storage)):
         logger.debug('No master or worker to run')
         sys.exit(0)
-    if(args.master):
-        from flamestore.server import MasterServer
     if(args.storage):
         if(args.format):
             format_storage(args)
-        from flamestore.server import StorageServer
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
     engine = Engine(protocol, use_progress_thread=True)
@@ -118,12 +127,14 @@ def run(args):
     if(args.master):
         master = __run_master(engine, ws_path, config)
     else:
-        worker = __run_worker(engine, ws_path, config, args.path+'/flamestore.pmem')
+        worker = __run_worker(engine, ws_path, config,
+                              args.path+'/flamestore.pmem')
     logger.info('Server now running')
     engine.wait_for_finalize()
     logger.info('Server shutting down')
     __finalize_worker(worker, ws_path)
     __finalize_master(master, ws_path)
+
 
 # ==================================================================== #
 # Shutdown command
@@ -140,7 +151,7 @@ def shutdown(args):
         logger.debug('Opening config file '+ws_path+CONFIG_FILE)
         with open(ws_path+CONFIG_FILE) as f:
             config = json.loads(f.read())
-    except:
+    except Exception:
         fatal('Could not open file '+CONFIG_FILE)
     if(len(args.storage) != 0):
         address = args.storage
@@ -149,7 +160,7 @@ def shutdown(args):
             logger.debug('Opening connection file '+ws_path+MASTER_FILE)
             with open(ws_path+MASTER_FILE) as f:
                 address = f.read()
-        except:
+        except Exception:
             fatal('Could not open file '+MASTER_FILE)
     protocol = config['protocol']
     logger.debug('Creating engine with protocol '+protocol)
@@ -167,7 +178,8 @@ def shutdown(args):
         admin.shutdown()
         del admin
     engine.finalize()
-    
+
+
 # ==================================================================== #
 # Format command
 # ==================================================================== #
@@ -201,11 +213,13 @@ def format_storage(args):
     pybake.server.make_pool(target, size, 0o664)
     logger.info('Created target at '+target+' (size is '+size_str+'B)')
 
+
 # ==================================================================== #
 # Command line parser
 # ==================================================================== #
-parser = argparse.ArgumentParser(prog='flamestore',
-        description='Command-line program for FlameStore management')
+parser = argparse.ArgumentParser(
+    prog='flamestore',
+    description='Command-line program for FlameStore management')
 subparsers = parser.add_subparsers()
 
 # Command to create the workspace and initialize it
