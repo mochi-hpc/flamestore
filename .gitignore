@@ -1,0 +1,6 @@
+**/workspace/
+build/
+**/__pycache__/
+**/*.log
+.spack-env/
+**/*.h5
