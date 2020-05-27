@@ -1,8 +1,0 @@
-{
-    "protocol" : "ofi+tcp",
-    "loglevel" : 0,
-    "backend" : "memory",
-    "flamestore" : {
-        "provider_id" : 0
-    }
-}
