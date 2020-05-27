@@ -1,0 +1,262 @@
+#!/bin/env python
+from __future__ import print_function
+import sys
+import os.path
+import argparse
+import spdlog
+import json
+
+WKSPACE_DIR = '/.flamestore'
+MASTER_FILE = WKSPACE_DIR + '/master'
+CONFIG_FILE = WKSPACE_DIR + '/config.json'
+
+logger = spdlog.ConsoleLogger("FlameStore")
+logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
+
+
+def fatal(msg, add_new_line=True):
+    logger.error(msg)
+    sys.exit(-1)
+
+
+def is_workspace(ws_path):
+    return os.path.isdir(ws_path+WKSPACE_DIR)
+
+
+# ==================================================================== #
+# Create FlameStore workspace
+# ==================================================================== #
+def create(args):
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    ws_path = args.workspace
+    workspace_config = {
+        'protocol': args.protocol,
+        'backend': args.backend,
+    }
+    if(not os.path.exists(ws_path) or not os.path.isdir(ws_path)):
+        fatal('Path doesn\'t exist or is not a directory.')
+    ws_path = os.path.abspath(ws_path)
+    if(is_workspace(ws_path)):
+        reinit = True
+    else:
+        reinit = False
+        logger.debug('Creating .flamestore directory in '+ws_path)
+        os.makedirs(ws_path+WKSPACE_DIR)
+    with open(ws_path+CONFIG_FILE, 'w+') as f:
+        logger.debug('Creating config.json in '+ws_path+WKSPACE_DIR)
+        f.write(json.dumps(workspace_config, indent=2))
+    if(reinit):
+        logger.info('Reinitialized FlameStore workspace ('
+                    + ws_path + WKSPACE_DIR + ')')
+    else:
+        logger.info('Initialized FlameStore workspace ('
+                    + ws_path + WKSPACE_DIR + ')')
+
+
+# ==================================================================== #
+# Run FlameStore instances
+# ==================================================================== #
+def __run_master(engine, ws_path, config):
+    from flamestore.server import MasterServer
+    loglevel = config.get('loglevel', 1)
+    backend = config.get('backend', 'master-memory')
+    master = MasterServer(engine, workspace=ws_path, config={},
+                          loglevel=loglevel, backend=backend)
+    info = master.get_connection_info()
+    logger.debug('Creating master connection information at '
+                 + ws_path + MASTER_FILE)
+    with open(ws_path+MASTER_FILE, 'w+') as f:
+        f.write(info)
+    return master
+
+
+def __finalize_master(master, ws_path):
+    if(master is None):
+        return
+    else:
+        logger.debug('Removing master connection information')
+        os.remove(ws_path+MASTER_FILE)
+
+
+def __run_worker(engine, ws_path, config, storage_path):
+    #    if(config['backend'] == 'master-memory'):
+    #        fatal('Memory backend does\'t have workers')
+    from flamestore.server import StorageServer
+    loglevel = config.get('loglevel', 1)
+    backend = config.get('backend', 'master-memory')
+    worker = StorageServer(
+        engine, workspace=ws_path,
+        config={'storage-path': storage_path},
+        loglevel=loglevel, backend=backend)
+    return worker
+
+
+def __finalize_worker(worker, ws_path):
+    if(worker is None):
+        return
+
+
+def run(args):
+    from pymargo.core import Engine
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.TRACE)
+    ws_path = os.path.abspath(args.workspace)
+    if(not is_workspace(ws_path)):
+        fatal(ws_path+' is not a FlameStore workspace')
+    configfile = ws_path+CONFIG_FILE
+    try:
+        logger.debug('Opening config file '+configfile)
+        with open(configfile) as f:
+            config = json.loads(f.read())
+    except Exception:
+        fatal('Could not open file '+configfile)
+    if(not (args.master or args.storage)):
+        logger.debug('No master or worker to run')
+        sys.exit(0)
+    if(args.storage):
+        if(args.format):
+            format_storage(args)
+    protocol = config['protocol']
+    logger.debug('Creating engine with protocol '+protocol)
+    engine = Engine(protocol, use_progress_thread=True)
+    logger.debug('Enabling remote shutdown')
+    engine.enable_remote_shutdown()
+    master = None
+    worker = None
+    if(args.master):
+        master = __run_master(engine, ws_path, config)
+    else:
+        worker = __run_worker(engine, ws_path, config,
+                              args.path+'/flamestore.pmem')
+    logger.info('Server now running')
+    engine.wait_for_finalize()
+    logger.info('Server shutting down')
+    __finalize_worker(worker, ws_path)
+    __finalize_master(master, ws_path)
+
+
+# ==================================================================== #
+# Shutdown command
+# ==================================================================== #
+def shutdown(args):
+    import pymargo.core
+    from pymargo.core import Engine
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    ws_path = os.path.abspath(args.workspace)
+    if(not is_workspace(ws_path)):
+        fatal(ws_path+' is not a FlameStore workspace')
+    try:
+        logger.debug('Opening config file '+ws_path+CONFIG_FILE)
+        with open(ws_path+CONFIG_FILE) as f:
+            config = json.loads(f.read())
+    except Exception:
+        fatal('Could not open file '+CONFIG_FILE)
+    if(len(args.storage) != 0):
+        address = args.storage
+    else:
+        try:
+            logger.debug('Opening connection file '+ws_path+MASTER_FILE)
+            with open(ws_path+MASTER_FILE) as f:
+                address = f.read()
+        except Exception:
+            fatal('Could not open file '+MASTER_FILE)
+    protocol = config['protocol']
+    logger.debug('Creating engine with protocol '+protocol)
+    engine = Engine(protocol, mode=pymargo.core.client)
+    if(len(args.storage) != 0):
+        logger.debug('Looking up address '+address)
+        endpoint = engine.lookup(address)
+        logger.info('Shutting down FlameStore storage server')
+        endpoint.shutdown()
+        del endpoint
+    else:
+        logger.info('Shutting down FlameStore')
+        from flamestore.admin import Admin
+        admin = Admin(engine=engine, workspace=ws_path)
+        admin.shutdown()
+        del admin
+    engine.finalize()
+
+
+# ==================================================================== #
+# Format command
+# ==================================================================== #
+def format_storage(args):
+    import re
+    import pybake.server
+    if(args.debug):
+        logger.set_level(spdlog.LogLevel.DEBUG)
+    storage_path = args.path
+    target = storage_path + '/flamestore.pmem'
+    size_str = args.size
+    m = re.match(r'(\d+)([K,M,G]?)', size_str)
+    if((not m) or (m.span()[1] != len(size_str))):
+        fatal('Invalid --size parameter')
+    else:
+        size = int(m.groups()[0])
+        if(m.groups()[1] == 'K'):
+            size *= 1024
+        elif(m.groups()[1] == 'M'):
+            size *= 1024*1024
+        elif(m.groups()[1] == 'G'):
+            size *= 1024*1024*1024
+    if(not os.path.isdir(storage_path)):
+        fatal(storage_path+' does not exist or is not a directory')
+    if(os.path.isfile(target)):
+        if(not args.override):
+            fatal(target+' already exists')
+        else:
+            os.remove(target)
+    logger.debug('Will format storage '+target+' with size '+size_str+'B')
+    pybake.server.make_pool(target, size, 0o664)
+    logger.info('Created target at '+target+' (size is '+size_str+'B)')
+
+
+# ==================================================================== #
+# Command line parser
+# ==================================================================== #
+parser = argparse.ArgumentParser(
+    prog='flamestore',
+    description='Command-line program for FlameStore management')
+subparsers = parser.add_subparsers()
+
+# Command to create the workspace and initialize it
+create_parser = subparsers.add_parser('init', help='Create a FlameStore workspace in the current directory')
+create_parser.add_argument('--protocol', '-p', type=str, help='Protocol to use by FlameStore for this workspace', default='ofi+tcp')
+create_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+create_parser.add_argument('--backend', '-b', type=str, help='Backend for FlameStore to use on thie workspace', default='master-memory')
+create_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+create_parser.set_defaults(func=create)
+
+# Command to run the FlameStore master or worker
+run_parser = subparsers.add_parser('run', help='Run a FlameStore server (master or worker)')
+run_parser.add_argument('--master', '-m', action='store_true', default=False, help='Run the FlameStore master')
+run_parser.add_argument('--storage', '-s', action='store_true', default=False, help='Run a FlameStore storage worker (requires --path to be set)')
+run_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+run_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+run_parser.add_argument('--path', '-p', type=str, default='', help='Path to storage target if running a worker')
+run_parser.add_argument('--format', action='store_true', default=False, help='Also format the storage (requires --size)')
+run_parser.add_argument('--size', type=str, default='', help='Size of the target in bytes (required only when --format is specified)')
+run_parser.add_argument('--override', action='store_true', default=False, help='Override existing target if present (when --format is specified)')
+run_parser.set_defaults(func=run)
+
+# Shutdown command
+shutdown_parser = subparsers.add_parser('shutdown', help='Shuts down FlameStore')
+shutdown_parser.add_argument('--workspace', '-w', type=str, help='Path to the workspace', default='.')
+shutdown_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+shutdown_parser.add_argument('--storage', '-s', type=str, default='', help='Address of a particular storage node to shut down')
+shutdown_parser.set_defaults(func=shutdown)
+
+# Format command
+format_parser = subparsers.add_parser('format', help='Formats local storage on the node where this command is run')
+format_parser.add_argument('--path', '-p', type=str, help='Path to the directory where a storage target should be created')
+format_parser.add_argument('--size', '-s', type=str, help='Size of the target in bytes (accepts the prefixes K, B, and G)')
+format_parser.add_argument('--debug', '-d', action='store_true', default=False, help='Enable debug entries in logs')
+format_parser.add_argument('--override', '-o', action='store_true', default=False, help='Override existing target if present')
+format_parser.set_defaults(func=format_storage)
+
+if __name__ == '__main__':
+    args = parser.parse_args(sys.argv[1:])
+    args.func(args)

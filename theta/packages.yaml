@@ -1,0 +1,85 @@
+packages:
+    mpich:
+        modules:
+            mpich@7.7.3 arch=cray-cnl6-mic_knl: cray-mpich
+        buildable: False
+    cmake:
+        modules:
+            cmake@3.14.5: cmake/3.14.5
+        buildable: False
+    autoconf:
+        paths:
+            autoconf@2.69: /usr
+        buildable: False
+    jdk:
+        modules:
+            jdk@1.8.0: java/jdk1.8.0_51
+        buildable: False
+    m4:
+        paths:
+            m4@1.4.16: /usr
+        buildable: False
+    automake:
+        paths:
+            automake@1.13.4: /usr
+        buildable: False
+    pkg-config:
+        paths:
+            pkg-config@0.29: /usr
+        buildable: False
+    libtool:
+        paths:
+            libtool@2.4.2: /usr
+        buildable: False
+    perl:
+        paths:
+            perl@5.18.2: /usr
+        buildable: False
+    python:
+        paths:
+            python@3.6.8: /soft/interpreters/python/3.6/intel/2019.3.075
+        buildable: False
+    py-numpy:
+        paths:
+            py-numpy@1.16.1: /soft/interpreters/python/3.6/intel/2019.3.075
+        buildable: False
+        variants: ~blas~lapack
+    py-h5py:
+        paths:
+            py-h5py@2.9.0: /soft/datascience/h5py
+        buildable: False
+    openblas:
+        variants: threads=openmp
+    py-mpi4py:
+        paths:
+            py-mpi4py@3.0.2: /soft/datascience/mpi4py
+        buildable: False
+    py-setuptools:
+        paths:
+            py-setuptools@39.0.1: /soft/interpreters/python/3.6/intel/2019.3.075
+        buildable: False
+    py-pip:
+        paths:
+            py-pip@10.0.1: /soft/interpreters/python/3.6/intel/2019.3.075
+        buildable: False
+    py-tensorflow:
+        modules:
+            py-tensorflow@2.0.0: datascience/tensorflow-2.0
+        buildable: False
+        variants: ~cuda~nccl
+    py-tmci:
+        variants: +theta
+    flamestore:
+        variants: +theta
+    ssg:
+        variants: +mpi
+    mercury:
+        variants: +udreg ~boostsys
+    libfabric:
+        variants: fabrics=gni
+    all:
+        providers:
+            mpi: [mpich, openmpi]
+            java: [jdk]
+            blas: [intel-mkl]
+        compiler: [gcc@7.3.0, intel@18.0.2.199, cce@8.7.3]
