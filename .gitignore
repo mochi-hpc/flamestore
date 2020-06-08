@@ -4,3 +4,4 @@ build/
 **/*.log
 .spack-env/
 **/*.h5
+spack.lock
