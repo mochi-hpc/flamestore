@@ -24,7 +24,7 @@ flamestore run --storage \
                --debug --workspace ${workspace} > worker.log 2>&1 &
 
 echo "Starting Client application"
-mpirun -np 2 python client-benchmark.py ${workspace} operations.txt
+mpirun -np 2 python flamestore-benchmark.py ${workspace} operations.txt
 
 echo "Shutting down FlameStore"
 flamestore shutdown --workspace=${workspace} --debug
