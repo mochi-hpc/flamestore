@@ -65,7 +65,10 @@ Client::return_status Client::write_model_data(
     if(cached_buffer.m_bulk.is_null()
     || cached_buffer.m_buffer.size() != size) {
         cached_buffer.m_buffer.resize(size);
-        cached_buffer.m_bulk = engine().expose(memory, tl::bulk_mode::read_write);
+        std::vector<std::pair<void*, size_t>> mem(1);
+        mem[0].first = cached_buffer.m_buffer.data();
+        mem[0].second = cached_buffer.m_buffer.size();
+        cached_buffer.m_bulk = engine().expose(mem, tl::bulk_mode::read_write);
     }
 
     size_t offset = 0;
@@ -95,10 +98,12 @@ Client::return_status Client::read_model_data(
     if(cached_buffer.m_bulk.is_null()
     || cached_buffer.m_buffer.size() != size) {
         cached_buffer.m_buffer.resize(size);
-        cached_buffer.m_bulk = engine().expose(memory, tl::bulk_mode::read_write);
+        std::vector<std::pair<void*, size_t>> mem(1);
+        mem[0].first = cached_buffer.m_buffer.data();
+        mem[0].second = cached_buffer.m_buffer.size();
+        cached_buffer.m_bulk = engine().expose(mem, tl::bulk_mode::read_write);
     }
 
-    tl::bulk local_bulk = engine().expose(memory, tl::bulk_mode::write_only);
     Status status = m_rpc_read_model
         .on(m_master_provider)(
             m_client_addr,
