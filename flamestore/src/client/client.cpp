@@ -61,14 +61,27 @@ Client::return_status Client::write_model_data(
         std::vector<std::pair<void*,size_t>>& memory,
         const std::size_t& size)
 {
-    tl::bulk local_bulk = engine().expose(memory, tl::bulk_mode::read_only);
+    auto& cached_buffer = m_cache[model_name];
+    if(cached_buffer.m_bulk.is_null()
+    || cached_buffer.m_buffer.size() != size) {
+        cached_buffer.m_buffer.resize(size);
+        cached_buffer.m_bulk = engine().expose(memory, tl::bulk_mode::read_write);
+    }
+
+    size_t offset = 0;
+    for(auto& p : memory) {
+        std::memcpy(cached_buffer.m_buffer.data()+offset, p.first, p.second);
+        offset += p.second;
+    }
+
     Status status = m_rpc_write_model
         .on(m_master_provider)(
             m_client_addr,
             model_name,
             signature,
-            local_bulk,
+            cached_buffer.m_bulk,
             size);
+
     return status.move_to_pair();
 }
 
@@ -78,14 +91,28 @@ Client::return_status Client::read_model_data(
         std::vector<std::pair<void*,size_t>>& memory,
         const std::size_t& size)
 {
+    auto& cached_buffer = m_cache[model_name];
+    if(cached_buffer.m_bulk.is_null()
+    || cached_buffer.m_buffer.size() != size) {
+        cached_buffer.m_buffer.resize(size);
+        cached_buffer.m_bulk = engine().expose(memory, tl::bulk_mode::read_write);
+    }
+
     tl::bulk local_bulk = engine().expose(memory, tl::bulk_mode::write_only);
     Status status = m_rpc_read_model
         .on(m_master_provider)(
             m_client_addr,
             model_name,
             signature,
-            local_bulk,
+            cached_buffer.m_bulk,
             size);
+
+    size_t offset = 0;
+    for(auto& p : memory) {
+        std::memcpy(p.first, cached_buffer.m_buffer.data()+offset, p.second);
+        offset += p.second;
+    }
+
     return status.move_to_pair();
 }
 

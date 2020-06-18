@@ -17,6 +17,11 @@ class Client {
 
     private:
 
+    struct CachedBulk {
+        std::vector<char> m_buffer;
+        tl::bulk          m_bulk;
+    };
+
     std::shared_ptr<tl::engine> m_engine;
     std::string                 m_client_addr;
     tl::remote_procedure        m_rpc_shutdown;
@@ -26,6 +31,7 @@ class Client {
     tl::remote_procedure        m_rpc_read_model;
     tl::remote_procedure        m_rpc_dup_model;
     tl::provider_handle         m_master_provider;
+    std::unordered_map<std::string, CachedBulk> m_cache;
 
     public:
 
