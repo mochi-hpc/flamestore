@@ -50,6 +50,7 @@ enum StatusCode {
     FLAMESTORE_EIO        = 5,
     FLAMESTORE_EBACKEND   = 6,
     FLAMESTORE_EBAKE      = 7,
+    FLAMESTORE_ENOIMPL    = 8,
     FLAMESTORE_EOTHER
 };
 

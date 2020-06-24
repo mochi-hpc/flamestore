@@ -1,6 +1,15 @@
+# =============================================== #
+# (C) 2018 The University of Chicago
+#
+# See COPYRIGHT in top-level directory.
+# =============================================== #
 from tensorflow.keras.callbacks import Callback
+from typing import Dict, Optional
 import json
 import spdlog
+import pymargo
+from pymargo.core import Engine
+from .client import Client
 
 
 logger = spdlog.ConsoleLogger("flamestore.callbacks")
@@ -13,14 +22,14 @@ class RemoteCheckpointCallback(Callback):
     """
 
     def __init__(self,
-                 model_name,
-                 workspace,
-                 frequency={'epoch': 1},
-                 include_optimizer=True,
-                 restart=False,
-                 duplicate_from=None,
-                 client=None,
-                 engine=None):
+                 model_name: str,
+                 workspace: str,
+                 frequency: Dict[str, int] = {'epoch': 1},
+                 include_optimizer: bool = True,
+                 restart: bool = False,
+                 duplicate_from: Optional[str] = None,
+                 client: Optional[Client] = None,
+                 engine: Optional[Engine] = None):
         """Constructor of RemoteCheckpointCallback.
 
         Args:
@@ -63,20 +72,17 @@ class RemoteCheckpointCallback(Callback):
         if(self._engine is None and self._client is None):
             self._owns_engine = True
             logger.debug("Importing pymargo")
-            import pymargo
-            import pymargo.core
             logger.debug("Finding out protocol to use")
             with open(self._workspace+'/.flamestore/config.json') as f:
                 config = json.loads(f.read())
                 protocol = config['protocol']
                 logger.debug("Protocol is "+protocol)
                 logger.debug("Initializing pymargo engine")
-                self._engine = pymargo.core.Engine(
+                self._engine = Engine(
                     protocol, use_progress_thread=True, mode=pymargo.server)
                 logger.debug("Engine initialized")
         if(self._client is None):
             self._owns_client = True
-            from .client import Client
             logger.debug("Initializing FlameStore client")
             self._client = Client(self._engine, self._workspace)
             logger.debug("Client initialized")
@@ -140,11 +146,11 @@ class RemoteCheckpointCallback(Callback):
                     include_optimizer=self._include_optimizer)
                 logger.info("Weights loaded successfully")
 
-    def on_batch_begin(self, batch, logs={}):
+    def on_batch_begin(self, batch: int, logs={}):
         """Callback method called when a batch begins."""
         logger.debug("on_batch_begin called")
 
-    def on_batch_end(self, batch, logs={}):
+    def on_batch_end(self, batch: int, logs={}):
         """Callback method called when a batch ends.
 
         This method may checkpoint the model and optimizer."""

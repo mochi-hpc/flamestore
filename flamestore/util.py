@@ -1,5 +1,12 @@
+# =============================================== #
+# (C) 2018 The University of Chicago
+#
+# See COPYRIGHT in top-level directory.
+# =============================================== #
+from typing import List
 
-def _hash(arr):
+
+def _hash(arr: List[int]):
     x = 0x345678
     mult = 1000003
     m = 2**64
@@ -14,8 +21,8 @@ def _hash(arr):
 
 def _compute_signature(model, optimizer=None):
     arr = []
-    for l in model.layers:
-        for w in l.weights:
+    for layer in model.layers:
+        for w in layer.weights:
             arr.append(w.dtype.size)
             for d in w.shape:
                 arr.append(int(d))

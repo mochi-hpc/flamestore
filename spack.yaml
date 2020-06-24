@@ -10,7 +10,7 @@ spack:
   - py-spdlog
   - py-mochi-margo
   - mochi-margo@master
-  - mochi-thallium
+  - mochi-thallium@master
   - mochi-sdskv
   - mochi-ssg
   - mochi-bake@master

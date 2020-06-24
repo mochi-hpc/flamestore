@@ -165,6 +165,80 @@ class MasterProvider : public tl::provider<MasterProvider> {
         }
     }
 
+    void on_register_dataset(
+            const tl::request& req,
+            const std::string& dataset_name,
+            const std::string& descriptor)
+    {
+        m_logger->debug("Registering dataset {} with descriptor {}", dataset_name, descriptor);
+        if(m_backend) {
+            m_backend->register_dataset(req, dataset_name, descriptor);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
+    void on_get_dataset_descriptor(
+            const tl::request& req,
+            const std::string& dataset_name)
+    {
+        m_logger->debug("Getting descriptor for dataset {}", dataset_name);
+        if(m_backend) {
+            m_backend->get_dataset_descriptor(req, dataset_name);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
+    void on_get_dataset_size(
+            const tl::request& req,
+            const std::string& dataset_name)
+    {
+        m_logger->debug("Getting size of dataset {}", dataset_name);
+        if(m_backend) {
+            m_backend->get_dataset_size(req, dataset_name);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
+    void on_add_samples(
+            const tl::request& req,
+            const std::string& client_addr,
+            const std::string& dataset_name,
+            const std::string& descriptor,
+            const std::vector<std::string>& field_names,
+            tl::bulk data)
+    {
+        m_logger->debug("Adding samples to dataset {}", dataset_name);
+        if(m_backend) {
+            m_backend->add_samples(req, client_addr, dataset_name, descriptor, field_names, data);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
+    void on_load_samples(
+            const tl::request& req,
+            const std::string& client_addr,
+            const std::string& dataset_name,
+            const std::string& descriptor,
+            const std::vector<std::string>& field_names,
+            tl::bulk data)
+    {
+        m_logger->debug("Loading samples from dataset {}", dataset_name);
+        if(m_backend) {
+            m_backend->load_samples(req, client_addr, dataset_name, descriptor, field_names, data);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
     public:
 
     /**
@@ -178,12 +252,17 @@ class MasterProvider : public tl::provider<MasterProvider> {
     : tl::provider<MasterProvider>(engine, provider_id)
     , m_logger(logger) {
         m_logger->debug("Registering RPCs on MasterProvider with provider id {}", provider_id);
-        define("flamestore_shutdown",         &MasterProvider::on_shutdown);
-        define("flamestore_register_model",   &MasterProvider::on_register_model);
-        define("flamestore_reload_model",     &MasterProvider::on_reload_model);
-        define("flamestore_write_model_data", &MasterProvider::on_write_model_data);
-        define("flamestore_read_model_data",  &MasterProvider::on_read_model_data);
-        define("flamestore_dup_model",        &MasterProvider::on_duplicate_model);
+        define("flamestore_shutdown",               &MasterProvider::on_shutdown);
+        define("flamestore_register_model",         &MasterProvider::on_register_model);
+        define("flamestore_reload_model",           &MasterProvider::on_reload_model);
+        define("flamestore_write_model_data",       &MasterProvider::on_write_model_data);
+        define("flamestore_read_model_data",        &MasterProvider::on_read_model_data);
+        define("flamestore_dup_model",              &MasterProvider::on_duplicate_model);
+        define("flamestore_register_dataset",       &MasterProvider::on_register_dataset);
+        define("flamestore_get_dataset_descriptor", &MasterProvider::on_get_dataset_descriptor);
+        define("flamestore_get_dataset_size",       &MasterProvider::on_get_dataset_size);
+        define("flamestore_add_samples",            &MasterProvider::on_add_samples);
+        define("flamestore_load_samples",           &MasterProvider::on_load_samples);
         m_logger->debug("RPCs registered");
     }
 

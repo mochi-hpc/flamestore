@@ -95,6 +95,35 @@ class AbstractServerBackend {
                 const std::string& model_name,
                 const std::string& new_model_name) = 0;
 
+        virtual void register_dataset(
+                const tl::request& req,
+                const std::string& dataset_name,
+                const std::string& descriptor) = 0;
+
+        virtual void get_dataset_descriptor(
+                const tl::request& req,
+                const std::string& dataset_name) = 0;
+
+        virtual void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) = 0;
+
+        virtual void add_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) = 0;
+
+        virtual void load_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) = 0;
+
         virtual void on_shutdown() {}
 
         virtual void on_worker_joined(

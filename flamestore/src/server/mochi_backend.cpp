@@ -109,7 +109,7 @@ class MochiBackend : public AbstractServerBackend {
         MochiBackend& operator=(AbstractServerBackend&&)      = delete;
         ~MochiBackend()                              = default;
 
-        virtual void register_model(
+        void register_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -117,12 +117,12 @@ class MochiBackend : public AbstractServerBackend {
                 std::size_t& model_size,
                 const std::string& model_signature) override;
 
-        virtual void reload_model(
+        void reload_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name) override;
 
-        virtual void write_model(
+        void write_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -130,7 +130,7 @@ class MochiBackend : public AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
 
-        virtual void read_model(
+        void read_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -138,21 +138,50 @@ class MochiBackend : public AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
 
-        virtual void duplicate_model(
+        void duplicate_model(
                 const tl::request& req,
                 const std::string& model_name,
                 const std::string& new_model_name) override;
 
-        virtual void on_shutdown() override;
+        void register_dataset(
+                const tl::request& req,
+                const std::string& dataset_name,
+                const std::string& descriptor) override;
 
-        virtual void on_worker_joined(
+        void get_dataset_descriptor(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void add_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) override;
+
+        void load_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) override;
+
+        void on_shutdown() override;
+
+        void on_worker_joined(
                 uint64_t member_id,
                 hg_addr_t addr) override;
 
-        virtual void on_worker_left(
+        void on_worker_left(
                 uint64_t member_id) override;
 
-        virtual void on_worker_died(
+        void on_worker_died(
                 uint64_t member_id) override;
 };
 
@@ -464,6 +493,56 @@ void MochiBackend::duplicate_model(
     }
     req.respond(Status::OK());
 }
+        
+void MochiBackend::register_dataset(
+                const tl::request& req,
+                const std::string& dataset_name,
+                const std::string& descriptor)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MochiBackend::get_dataset_descriptor(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MochiBackend::get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MochiBackend::add_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MochiBackend::load_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
 
 }
 

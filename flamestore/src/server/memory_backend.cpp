@@ -93,7 +93,7 @@ class MemoryBackend : public AbstractServerBackend {
         MemoryBackend& operator=(AbstractServerBackend&&)      = delete;
         ~MemoryBackend()                              = default;
 
-        virtual void register_model(
+        void register_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -101,12 +101,12 @@ class MemoryBackend : public AbstractServerBackend {
                 std::size_t& model_size,
                 const std::string& model_signature) override;
 
-        virtual void reload_model(
+        void reload_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name) override;
 
-        virtual void write_model(
+        void write_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -114,7 +114,7 @@ class MemoryBackend : public AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
 
-        virtual void read_model(
+        void read_model(
                 const tl::request& req,
                 const std::string& client_addr,
                 const std::string& model_name,
@@ -122,10 +122,39 @@ class MemoryBackend : public AbstractServerBackend {
                 const tl::bulk& remote_bulk,
                 const std::size_t& size) override;
 
-        virtual void duplicate_model(
+        void duplicate_model(
                 const tl::request& req,
                 const std::string& model_name,
                 const std::string& new_model_name) override;
+
+        void register_dataset(
+                const tl::request& req,
+                const std::string& dataset_name,
+                const std::string& descriptor) override;
+
+        void get_dataset_descriptor(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void add_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) override;
+
+        void load_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data) override;
 };
 
 REGISTER_FLAMESTORE_BACKEND("master-memory",MemoryBackend);
@@ -291,6 +320,55 @@ void MemoryBackend::duplicate_model(
         new_model->m_impl.m_model_data_bulk = m_engine->expose(new_model_data_ptr, tl::bulk_mode::read_write);
     }
     req.respond(Status::OK());
+}
+        
+void MemoryBackend::register_dataset(
+                const tl::request& req,
+                const std::string& dataset_name,
+                const std::string& descriptor)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MemoryBackend::get_dataset_descriptor(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MemoryBackend::get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MemoryBackend::add_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MemoryBackend::load_samples(
+                const tl::request& req,
+                const std::string& client_address,
+                const std::string& dataset_name,
+                const std::string& descriptor,
+                const std::vector<std::string>& field_names,
+                tl::bulk data)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
 }
 
 }

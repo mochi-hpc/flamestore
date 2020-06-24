@@ -1,6 +1,8 @@
 #ifndef __FLAMESTORE_CLIENT_H
 #define __FLAMESTORE_CLIENT_H
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 #include <iostream>
 #include <mutex>
 #include <map>
@@ -9,6 +11,7 @@
 #include "common/status.hpp"
 
 namespace py11 = pybind11;
+namespace np = py11;
 namespace tl = thallium;
 
 namespace flamestore {
@@ -30,6 +33,11 @@ class Client {
     tl::remote_procedure        m_rpc_write_model;
     tl::remote_procedure        m_rpc_read_model;
     tl::remote_procedure        m_rpc_dup_model;
+    tl::remote_procedure        m_rpc_register_dataset;
+    tl::remote_procedure        m_rpc_get_dataset_descriptor;
+    tl::remote_procedure        m_rpc_get_dataset_size;
+    tl::remote_procedure        m_rpc_add_samples;
+    tl::remote_procedure        m_rpc_load_samples;
     tl::provider_handle         m_master_provider;
     std::unordered_map<std::string, CachedBulk> m_cache;
 
@@ -111,6 +119,43 @@ class Client {
             const std::string& signature,
             std::vector<std::pair<void*,size_t>>& memory,
             const std::size_t& size);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status register_dataset(
+            const std::string& dataset_name,
+            const std::string& descriptor);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status get_dataset_descriptor(
+            const std::string& dataset_name);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status get_dataset_size(
+            const std::string& dataset_name);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status add_samples(
+            const std::string& dataset_name,
+            const std::string& descriptor,
+            const std::vector<std::string>& field_names,
+            const std::vector<np::array>& arrays);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status load_samples(
+            const std::string& dataset_name,
+            const std::string& descriptor,
+            const std::vector<std::string>& field_names,
+            const std::vector<std::vector<np::array>>& arrays);
 };
 
 }

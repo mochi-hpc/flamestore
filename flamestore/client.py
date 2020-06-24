@@ -1,13 +1,24 @@
+# =============================================== #
+# (C) 2018 The University of Chicago
+#
+# See COPYRIGHT in top-level directory.
+# =============================================== #
 import tmci.checkpoint
 import _flamestore_client
 import json
 import os.path
+import numpy as np
 from functools import reduce
+from typing import Optional, Callable, List
+import spdlog
+
+import pymargo
+from pymargo.core import Engine
 
 from tensorflow.keras.models import model_from_json
 import tensorflow.keras.optimizers as optimizers
 from . import util
-import spdlog
+from .dataset import Descriptor
 
 logger = spdlog.ConsoleLogger("flamestore.client")
 logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
@@ -16,7 +27,8 @@ logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
 class Client(_flamestore_client.Client):
     """Client class allowing access to FlameStore providers."""
 
-    def __init__(self, engine=None, workspace='.'):
+    def __init__(self, engine: Optional(Engine) = None,
+                 workspace: str = '.'):
         """Constructor.
 
         Args:
@@ -29,8 +41,6 @@ class Client(_flamestore_client.Client):
             raise RuntimeError('Directory is not a FlameStore workspace')
         connectionfile = path + '/.flamestore/master'
         if(engine is None):
-            import pymargo
-            import pymargo.core
             with open(path+'/.flamestore/config.json') as f:
                 config = json.loads(f.read())
             protocol = config['protocol']
@@ -48,9 +58,9 @@ class Client(_flamestore_client.Client):
         del self._engine
 
     def register_model(self,
-                       model_name,
+                       model_name: str,
                        model,
-                       include_optimizer=True):
+                       include_optimizer: bool = True):
         """
         Registers a model in a provider.
 
@@ -68,8 +78,8 @@ class Client(_flamestore_client.Client):
         else:
             model_config['optimizer'] = None
         model_size = 0
-        for l in model.layers:
-            for w in l.weights:
+        for layer in model.layers:
+            for w in layer.weights:
                 s = w.dtype.size * reduce(lambda x, y: x * y, w.shape)
                 model_size += s
         if(include_optimizer):
@@ -95,7 +105,7 @@ class Client(_flamestore_client.Client):
             logger.error(message)
             raise RuntimeError(message)
 
-    def reload_model(self, model_name, include_optimizer=True):
+    def reload_model(self, model_name: str, include_optimizer: bool = True):
         """Loads a model given its name from FlameStore. This method
         will only reload the model's architecture, not the model's data.
         The load_weights method in TMCI should be used to load the model's
@@ -128,7 +138,7 @@ class Client(_flamestore_client.Client):
             model.optimizer = cls(**optimizer_config)
         return model
 
-    def duplicate_model(self, source_model_name, dest_model_name):
+    def duplicate_model(self, source_model_name: str, dest_model_name: str):
         """This function requests the FlameStore backend to
         duplicate a model (both architecture and data).
         The new model name must not be already in use.
@@ -144,8 +154,8 @@ class Client(_flamestore_client.Client):
             logger.error(message)
             raise RuntimeError(message)
 
-    def __transfer_weights(self, model_name, model,
-                           include_optimizer, transfer):
+    def __transfer_weights(self, model_name: str, model,
+                           include_optimizer: bool, transfer: Callable):
         """Helper function that can save and load weights (the save and load
         functions must be passed as the "transfer" argument). Used by the
         save_weights and load_weights methods.
@@ -169,7 +179,8 @@ class Client(_flamestore_client.Client):
                  config=json.dumps(tmci_params),
                  include_optimizer=include_optimizer)
 
-    def save_weights(self, model_name, model, include_optimizer=True):
+    def save_weights(self, model_name: str, model,
+                     include_optimizer: bool = True):
         """Saves the model's weights. The model must have been registered.
 
         Args:
@@ -180,7 +191,8 @@ class Client(_flamestore_client.Client):
         self.__transfer_weights(model_name, model, include_optimizer,
                                 tmci.checkpoint.save_weights)
 
-    def load_weights(self, model_name, model, include_optimizer=True):
+    def load_weights(self, model_name: str, model,
+                     include_optimizer: bool = True):
         """Loads the model's weights. The model must have been registered
         and built.
 
@@ -192,3 +204,106 @@ class Client(_flamestore_client.Client):
         model._make_train_function()
         self.__transfer_weights(model_name, model, include_optimizer,
                                 tmci.checkpoint.load_weights)
+
+    def register_dataset(self, dataset_name: str, descriptor: Descriptor):
+        """Register a dataset's informations.
+
+        Args:
+            dataset_name (str): name of the dataset.
+            descriptor (Descriptor): dataset descriptor.
+        """
+        status, message = self._register_dataset(dataset_name, str(descriptor))
+        if status != 0:
+            raise RuntimeError(message)
+
+    def get_dataset_descriptor(self, dataset_name: str):
+        """Get a particular dataset's descriptor.
+
+        Args:
+            dataset_name (str): name of the dataset.
+        Returns:
+            a Descriptor instance.
+        """
+        status, message = self._get_dataset_descriptor(dataset_name)
+        if status != 0:
+            raise RuntimeError(message)
+        return Descriptor.from_string(message)
+
+    def get_dataset_size(self, dataset_name: str):
+        """Get a particular dataset's number of samples.
+
+        Args:
+            dataset_name (str): name of the dataset.
+        Returns:
+            the number of samples contained in the dataset.
+        """
+        status, message = self._get_dataset_size(dataset_name)
+        if status != 0:
+            raise RuntimeError(message)
+        return int(message)
+
+    def add_samples(self, dataset_name: str,
+                    **kwargs: List[np.array]):
+        """Add a set of samples to the dataset.
+
+        Args:
+            dataset_name (str): name of the dataset.
+            kwargs: association between field name and numpy array
+        """
+        field_names = list(kwargs.keys())
+        array_lists = list(kwargs.values())
+        if len(field_names) == 0:
+            return
+        descriptor = self._make_descriptor_from_kwargs(**kwargs)
+        status, message = self._add_samples(
+            dataset_name, str(descriptor), field_names, array_lists)
+        if status != 0:
+            raise RuntimeError(message)
+
+    def load_samples(self, dataset_name: str, ids: List[int],
+                     **kwargs: List[np.array]):
+        """Load a set of samples from the dataset.
+
+        Args:
+            dataset_name (str): name of the dataset.
+            kwargs: association between field name and numpy array
+        """
+        field_names = list(kwargs.keys())
+        array_lists = list(kwargs.values())
+        if len(field_names) == 0:
+            return
+        descriptor = self._make_descriptor_from_kwargs(**kwargs)
+        status, message = self._load_samples(
+            dataset_name, str(descriptor), field_names, array_lists)
+
+    def _make_descriptor_from_kwargs(self, **kwargs: List[np.array]):
+        field_names = list(kwargs.keys())
+        array_lists = list(kwargs.values())
+        # check that all the lists fo numpy arrays have the same size
+        num_arrays = 0
+        for i, lst in enumerate(array_lists):
+            num_arrays = len(lst)
+            if i == 0:
+                continue
+            if len(lst) != len(array_lists[i-1]):
+                raise KeyError("Lists of numpy arrays must be the same size")
+        if num_arrays == 0:
+            None
+        # check that all the arrays have the same dtype and shape
+        for lst in array_lists:
+            a0 = lst[0]
+            for a in lst[1:]:
+                if a0.dtype != a.dtype:
+                    raise RuntimeError(
+                        "Numpy arrays in the same"
+                        + " field must have the same dtype")
+                if a0.shape != a.shape:
+                    raise RuntimeError(
+                        "Numpy arrays in the same"
+                        + " field must have the same shape")
+        # make a descriptor
+        d = Descriptor()
+        for lst, field in zip(array_lists, field_names):
+            a = lst[0]
+            d.add_field(field, a.dtype, a.shape)
+        return d

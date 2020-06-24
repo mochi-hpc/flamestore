@@ -12,6 +12,11 @@ Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     , m_rpc_write_model(m_engine->define("flamestore_write_model_data"))
     , m_rpc_read_model(m_engine->define("flamestore_read_model_data"))
     , m_rpc_dup_model(m_engine->define("flamestore_dup_model"))
+    , m_rpc_register_dataset(m_engine->define("flamestore_register_dataset"))
+    , m_rpc_get_dataset_descriptor(m_engine->define("flamestore_get_dataset_descriptor"))
+    , m_rpc_get_dataset_size(m_engine->define("flamestore_get_dataset_size"))
+    , m_rpc_add_samples(m_engine->define("flamestore_add_samples"))
+    , m_rpc_load_samples(m_engine->define("flamestore_load_samples"))
 {
     std::ifstream ifs(connectionfile);
     if(!ifs.good())
@@ -130,6 +135,61 @@ Client::return_status Client::duplicate_model(
             model_name,
             new_model_name);
     return status.move_to_pair();
+}
+
+Client::return_status Client::register_dataset(
+        const std::string& dataset_name,
+        const std::string& descriptor)
+{
+    Status status = m_rpc_register_dataset
+        .on(m_master_provider)(
+                dataset_name,
+                descriptor);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::get_dataset_descriptor(
+        const std::string& dataset_name)
+{
+    Status status = m_rpc_get_dataset_descriptor
+        .on(m_master_provider)(dataset_name);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::get_dataset_size(
+        const std::string& dataset_name)
+{
+    Status status = m_rpc_get_dataset_size
+        .on(m_master_provider)(dataset_name);
+    return status.move_to_pair();
+}
+
+Client::return_status Client::add_samples(
+        const std::string& dataset_name,
+        const std::string& descriptor,
+        const std::vector<std::string>& field_names,
+        const std::vector<np::array>& arrays)
+{
+    // Don't forget to pass client_address to the RPC
+    std::cout << "add_samples: " << dataset_name
+        << " " << descriptor << " with fields " << std::endl;
+    for(const auto& f : field_names)
+        std::cout << "   " << f << std::endl;
+    std::cout << "and arrays size " << arrays.size() << std::endl;
+}
+
+Client::return_status Client::load_samples(
+        const std::string& dataset_name,
+        const std::string& descriptor,
+        const std::vector<std::string>& field_names,
+        const std::vector<std::vector<np::array>>& arrays)
+{
+    // Don't forget to pass client_address to the RPC
+    std::cout << "load_samples: " << dataset_name
+        << " " << descriptor << " with fields " << std::endl;
+    for(const auto& f : field_names)
+        std::cout << "   " << f << std::endl;
+    std::cout << "and arrays size " << arrays.size() << std::endl;
 }
 
 }

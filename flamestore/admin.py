@@ -1,4 +1,10 @@
+# =============================================== #
+# (C) 2018 The University of Chicago
+#
+# See COPYRIGHT in top-level directory.
+# =============================================== #
 import _flamestore_admin
+from pymargo.core import Engine
 import json
 import os.path
 import spdlog
@@ -10,7 +16,7 @@ logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
 class Admin(_flamestore_admin.Admin):
     """Admin class allowing access to FlameStore providers."""
 
-    def __init__(self, engine=None, workspace='.'):
+    def __init__(self, engine: Engine = None, workspace: str = '.'):
         """Constructor.
 
         Args:
