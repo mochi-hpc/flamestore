@@ -130,13 +130,18 @@ class MemoryBackend : public AbstractServerBackend {
         void register_dataset(
                 const tl::request& req,
                 const std::string& dataset_name,
-                const std::string& descriptor) override;
+                const std::string& descriptor,
+                const std::string& metadata) override;
 
         void get_dataset_descriptor(
                 const tl::request& req,
                 const std::string& dataset_name) override;
 
         void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void get_dataset_metadata(
                 const tl::request& req,
                 const std::string& dataset_name) override;
 
@@ -325,7 +330,8 @@ void MemoryBackend::duplicate_model(
 void MemoryBackend::register_dataset(
                 const tl::request& req,
                 const std::string& dataset_name,
-                const std::string& descriptor)
+                const std::string& descriptor,
+                const std::string& metadata)
 {
     // TODO
     req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
@@ -340,6 +346,14 @@ void MemoryBackend::get_dataset_descriptor(
 }
 
 void MemoryBackend::get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    // TODO
+    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+}
+
+void MemoryBackend::get_dataset_metadata(
                 const tl::request& req,
                 const std::string& dataset_name)
 {

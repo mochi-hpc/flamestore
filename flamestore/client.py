@@ -27,7 +27,7 @@ logger.set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v")
 class Client(_flamestore_client.Client):
     """Client class allowing access to FlameStore providers."""
 
-    def __init__(self, engine: Optional(Engine) = None,
+    def __init__(self, engine: Optional[Engine] = None,
                  workspace: str = '.'):
         """Constructor.
 
@@ -205,14 +205,17 @@ class Client(_flamestore_client.Client):
         self.__transfer_weights(model_name, model, include_optimizer,
                                 tmci.checkpoint.load_weights)
 
-    def register_dataset(self, dataset_name: str, descriptor: Descriptor):
+    def register_dataset(self, dataset_name: str,
+                         descriptor: Descriptor,
+                         metadata: str = ''):
         """Register a dataset's informations.
 
         Args:
             dataset_name (str): name of the dataset.
             descriptor (Descriptor): dataset descriptor.
+            metadata (str): string (e.g. JSON-formatted) to attach to the dataset.
         """
-        status, message = self._register_dataset(dataset_name, str(descriptor))
+        status, message = self._register_dataset(dataset_name, str(descriptor), metadata)
         if status != 0:
             raise RuntimeError(message)
 
@@ -241,6 +244,19 @@ class Client(_flamestore_client.Client):
         if status != 0:
             raise RuntimeError(message)
         return int(message)
+    
+    def get_dataset_metadata(self, dataset_name: str):
+        """Get a particular dataset's metadata.
+
+        Args:
+            dataset_name (str): name of the dataset.
+        Returns:
+            the metadata associated with the dataset at registration time.
+        """
+        status, message = self._get_dataset_metadata(dataset_name)
+        if status != 0:
+            raise RuntimeError(message)
+        return message
 
     def add_samples(self, dataset_name: str,
                     **kwargs: List[np.array]):

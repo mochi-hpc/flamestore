@@ -168,11 +168,13 @@ class MasterProvider : public tl::provider<MasterProvider> {
     void on_register_dataset(
             const tl::request& req,
             const std::string& dataset_name,
-            const std::string& descriptor)
+            const std::string& descriptor,
+            const std::string& metadata)
     {
-        m_logger->debug("Registering dataset {} with descriptor {}", dataset_name, descriptor);
+        m_logger->debug("Registering dataset {} with descriptor {} and metadata \"{}\"",
+                        dataset_name, descriptor, metadata);
         if(m_backend) {
-            m_backend->register_dataset(req, dataset_name, descriptor);
+            m_backend->register_dataset(req, dataset_name, descriptor, metadata);
         } else {
             m_logger->error("No backend found!");
             req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
@@ -186,6 +188,19 @@ class MasterProvider : public tl::provider<MasterProvider> {
         m_logger->debug("Getting descriptor for dataset {}", dataset_name);
         if(m_backend) {
             m_backend->get_dataset_descriptor(req, dataset_name);
+        } else {
+            m_logger->error("No backend found!");
+            req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
+        }
+    }
+
+    void on_get_dataset_metadata(
+            const tl::request& req,
+            const std::string& dataset_name)
+    {
+        m_logger->debug("Getting descriptor for dataset {}", dataset_name);
+        if(m_backend) {
+            m_backend->get_dataset_metadata(req, dataset_name);
         } else {
             m_logger->error("No backend found!");
             req.respond(Status(FLAMESTORE_EBACKEND, "No FlameStore backend found"));
@@ -261,6 +276,7 @@ class MasterProvider : public tl::provider<MasterProvider> {
         define("flamestore_register_dataset",       &MasterProvider::on_register_dataset);
         define("flamestore_get_dataset_descriptor", &MasterProvider::on_get_dataset_descriptor);
         define("flamestore_get_dataset_size",       &MasterProvider::on_get_dataset_size);
+        define("flamestore_get_dataset_metadata",   &MasterProvider::on_get_dataset_metadata);
         define("flamestore_add_samples",            &MasterProvider::on_add_samples);
         define("flamestore_load_samples",           &MasterProvider::on_load_samples);
         m_logger->debug("RPCs registered");

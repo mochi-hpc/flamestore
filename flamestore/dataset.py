@@ -34,13 +34,14 @@ class Descriptor:
     def __str__(self):
         fields_str = []
         for field, (dtype, shape) in self._fields.items():
-            fields_str.append('"' + field + '":("' + str(dtype) + '",' + str(shape) + ')')
+            fields_str.append('"' + field + '":["' + str(dtype) + '",' + str(list(shape)) + ']')
         return '{' + ','.join(fields_str) + '}'
 
     @staticmethod
     def from_string(descriptor_str):
+        print(descriptor_str)
         fields = json.loads(descriptor_str)
         descriptor = Descriptor()
         for field, (dtype, shape) in fields.items():
-            descriptor.add_field(field, np.dtype(dtype), shape)
+            descriptor.add_field(field, np.dtype(dtype), tuple(shape))
         return descriptor

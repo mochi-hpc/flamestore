@@ -15,6 +15,7 @@ Client::Client(pymargo_instance_id mid, const std::string& connectionfile)
     , m_rpc_register_dataset(m_engine->define("flamestore_register_dataset"))
     , m_rpc_get_dataset_descriptor(m_engine->define("flamestore_get_dataset_descriptor"))
     , m_rpc_get_dataset_size(m_engine->define("flamestore_get_dataset_size"))
+    , m_rpc_get_dataset_metadata(m_engine->define("flamestore_get_dataset_metadata"))
     , m_rpc_add_samples(m_engine->define("flamestore_add_samples"))
     , m_rpc_load_samples(m_engine->define("flamestore_load_samples"))
 {
@@ -139,12 +140,14 @@ Client::return_status Client::duplicate_model(
 
 Client::return_status Client::register_dataset(
         const std::string& dataset_name,
-        const std::string& descriptor)
+        const std::string& descriptor,
+        const std::string& metadata)
 {
     Status status = m_rpc_register_dataset
         .on(m_master_provider)(
                 dataset_name,
-                descriptor);
+                descriptor,
+                metadata);
     return status.move_to_pair();
 }
 
@@ -163,6 +166,15 @@ Client::return_status Client::get_dataset_size(
         .on(m_master_provider)(dataset_name);
     return status.move_to_pair();
 }
+
+Client::return_status Client::get_dataset_metadata(
+        const std::string& dataset_name)
+{
+    Status status = m_rpc_get_dataset_metadata
+        .on(m_master_provider)(dataset_name);
+    return status.move_to_pair();
+}
+
 
 Client::return_status Client::add_samples(
         const std::string& dataset_name,

@@ -98,13 +98,18 @@ class AbstractServerBackend {
         virtual void register_dataset(
                 const tl::request& req,
                 const std::string& dataset_name,
-                const std::string& descriptor) = 0;
+                const std::string& descriptor,
+                const std::string& metadata) = 0;
 
         virtual void get_dataset_descriptor(
                 const tl::request& req,
                 const std::string& dataset_name) = 0;
 
         virtual void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) = 0;
+
+        virtual void get_dataset_metadata(
                 const tl::request& req,
                 const std::string& dataset_name) = 0;
 

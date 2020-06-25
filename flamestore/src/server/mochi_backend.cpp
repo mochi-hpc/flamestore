@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include <bake-client.hpp>
 #include "model.hpp"
+#include "dataset.hpp"
 #include "backend.hpp"
 
 namespace flamestore {
@@ -26,23 +27,31 @@ class MochiBackend : public AbstractServerBackend {
             std::size_t             m_size;
         };
 
+        struct dataset_impl {
+        };
+
 
     public:
 
         using model_t = flamestore_model<model_impl>;
+        using dataset_t = flamestore_dataset<dataset_impl>;
         using name_t = std::string;
         using lock_guard_t = std::lock_guard<tl::mutex>;
 
     private:
 
-        tl::engine*                                 m_engine;
-        spdlog::logger*                             m_logger;
-        mutable tl::rwlock                          m_models_rwlock;
-        std::map<name_t, std::unique_ptr<model_t>>  m_models;
-        bake::client                                m_bake_client;
+        tl::engine*                                  m_engine;
+        spdlog::logger*                              m_logger;
 
-        std::vector<std::shared_ptr<location>>      m_storage_locations;
-        tl::rwlock                                  m_storage_locations_lock;
+        mutable tl::rwlock                           m_models_rwlock;
+        std::map<name_t, std::unique_ptr<model_t>>   m_models;
+
+        mutable tl::rwlock                           m_datasets_rwlock;
+        std::map<name_t, std::unique_ptr<dataset_t>> m_datasets;
+
+        bake::client                                 m_bake_client;
+        std::vector<std::shared_ptr<location>>       m_storage_locations;
+        tl::rwlock                                   m_storage_locations_lock;
 
         /**
          * @brief Finds a model with the provided name in the map.
@@ -89,6 +98,56 @@ class MochiBackend : public AbstractServerBackend {
             } else  {
                 auto result = it->second.get();
                 m_models_rwlock.unlock();
+                created = false;
+                return result;
+            }
+        }
+
+        /**
+         * @brief Finds a dataset with the provided name in the map.
+         * If the dataset doesn't exist, returns nullptr.
+         *
+         * @param dataset_name Name of the dataset.
+         *
+         * @return pointer to the dataset.
+         */
+        inline dataset_t* _find_dataset(const std::string& dataset_name) const {
+            m_datasets_rwlock.rdlock();
+            auto it = m_datasets.find(dataset_name);
+            if(it == m_datasets.end()) {
+                m_datasets_rwlock.unlock();
+                return nullptr;
+            } else  {
+                auto result = it->second.get();
+                m_datasets_rwlock.unlock();
+                return result;
+            }
+        }
+
+        /**
+         * @brief Finds a dataset with the provided name in the map,
+         * or create it if it did not exist before.
+         *
+         * @param dataset_name Name of the dataset.
+         * @param created whether the dataset has been created or not.
+         *
+         * @return pointer to the dataset.
+         */
+        inline dataset_t* _find_or_create_dataset(const std::string& dataset_name, bool& created) {
+            m_logger->info("Entering _find_or_create_dataset");
+            m_datasets_rwlock.wrlock();
+            auto it = m_datasets.find(dataset_name);
+            if(it == m_datasets.end()) {
+                auto dataset = std::make_unique<dataset_t>();
+                auto result = dataset.get();
+                dataset->m_name = dataset_name;
+                m_datasets.emplace(dataset_name, std::move(dataset));
+                m_datasets_rwlock.unlock();
+                created = true;
+                return result;
+            } else  {
+                auto result = it->second.get();
+                m_datasets_rwlock.unlock();
                 created = false;
                 return result;
             }
@@ -146,13 +205,18 @@ class MochiBackend : public AbstractServerBackend {
         void register_dataset(
                 const tl::request& req,
                 const std::string& dataset_name,
-                const std::string& descriptor) override;
+                const std::string& descriptor,
+                const std::string& metadata) override;
 
         void get_dataset_descriptor(
                 const tl::request& req,
                 const std::string& dataset_name) override;
 
         void get_dataset_size(
+                const tl::request& req,
+                const std::string& dataset_name) override;
+
+        void get_dataset_metadata(
                 const tl::request& req,
                 const std::string& dataset_name) override;
 
@@ -497,26 +561,82 @@ void MochiBackend::duplicate_model(
 void MochiBackend::register_dataset(
                 const tl::request& req,
                 const std::string& dataset_name,
-                const std::string& descriptor)
+                const std::string& descriptor,
+                const std::string& metadata)
 {
-    // TODO
-    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+    bool created = false;
+    m_logger->info("Entering MochiBackend::register_dataset");
+    auto dataset = _find_or_create_dataset(dataset_name, created);
+    if(not created) {
+        m_logger->error("Dataset \"{}\" already exists", dataset_name);
+        req.respond(Status(
+                    FLAMESTORE_EEXISTS,
+                    "A dataset with the same name is already registered"));
+        m_logger->trace("Leaving flamestore_provider::on_register_dataset");
+        return;
+    }
+    m_logger->info("Dataset \"{}\" created", dataset_name);
+
+    lock_guard_t guard(dataset->m_mutex);
+
+    m_logger->info("Registering dataset \"{}\"", dataset_name);
+
+    dataset->m_descriptor = std::move(descriptor);
+    dataset->m_metadata   = std::move(metadata);
+    dataset->m_size       = 0;
+
+    req.respond(Status::OK());
 }
 
 void MochiBackend::get_dataset_descriptor(
                 const tl::request& req,
                 const std::string& dataset_name)
 {
-    // TODO
-    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+    auto dataset = _find_dataset(dataset_name);
+    if(dataset == nullptr) {
+        m_logger->error("Dataset \"{}\" does not exist", dataset_name);
+        req.respond(Status(
+                    FLAMESTORE_ENOEXISTS,
+                    "No dataset found with provided name"));
+        m_logger->trace("Leaving flamestore_provider::get_dataset_descriptor");
+        return;
+    }
+    m_logger->info("Getting descriptor for dataset \"{}\"", dataset_name);
+    req.respond(Status::OK(dataset->m_descriptor));
 }
 
 void MochiBackend::get_dataset_size(
                 const tl::request& req,
                 const std::string& dataset_name)
 {
-    // TODO
-    req.respond(Status(FLAMESTORE_ENOIMPL, "Operation not implemented"));
+    auto dataset = _find_dataset(dataset_name);
+    if(dataset == nullptr) {
+        m_logger->error("Dataset \"{}\" does not exist", dataset_name);
+        req.respond(Status(
+                    FLAMESTORE_ENOEXISTS,
+                    "No dataset found with provided name"));
+        m_logger->trace("Leaving flamestore_provider::get_dataset_size");
+        return;
+    }
+    m_logger->info("Getting size of dataset \"{}\"", dataset_name);
+    req.respond(Status::OK(std::to_string(dataset->m_size)));
+}
+
+void MochiBackend::get_dataset_metadata(
+                const tl::request& req,
+                const std::string& dataset_name)
+{
+    auto dataset = _find_dataset(dataset_name);
+    if(dataset == nullptr) {
+        m_logger->error("Dataset \"{}\" does not exist", dataset_name);
+        req.respond(Status(
+                    FLAMESTORE_ENOEXISTS,
+                    "No dataset found with provided name"));
+        m_logger->trace("Leaving flamestore_provider::get_dataset_metadata");
+        return;
+    }
+    m_logger->info("Getting metadata for dataset \"{}\"", dataset_name);
+    req.respond(Status::OK(dataset->m_metadata));
 }
 
 void MochiBackend::add_samples(

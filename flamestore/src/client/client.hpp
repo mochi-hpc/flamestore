@@ -36,6 +36,7 @@ class Client {
     tl::remote_procedure        m_rpc_register_dataset;
     tl::remote_procedure        m_rpc_get_dataset_descriptor;
     tl::remote_procedure        m_rpc_get_dataset_size;
+    tl::remote_procedure        m_rpc_get_dataset_metadata;
     tl::remote_procedure        m_rpc_add_samples;
     tl::remote_procedure        m_rpc_load_samples;
     tl::provider_handle         m_master_provider;
@@ -125,7 +126,8 @@ class Client {
      */
     return_status register_dataset(
             const std::string& dataset_name,
-            const std::string& descriptor);
+            const std::string& descriptor,
+            const std::string& metadata);
 
     /**
      * @brief This function is exposed to Python.
@@ -137,6 +139,12 @@ class Client {
      * @brief This function is exposed to Python.
      */
     return_status get_dataset_size(
+            const std::string& dataset_name);
+
+    /**
+     * @brief This function is exposed to Python.
+     */
+    return_status get_dataset_metadata(
             const std::string& dataset_name);
 
     /**

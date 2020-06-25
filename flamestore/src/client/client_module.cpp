@@ -26,6 +26,8 @@ PYBIND11_MODULE(_flamestore_client, m) {
                 "Get dataset descriptor.")
         .def("_get_dataset_size", &flamestore::Client::get_dataset_size,
                 "Get dataset size.")
+        .def("_get_dataset_metadata", &flamestore::Client::get_dataset_metadata,
+                "Get dataset metadata.")
         .def("_add_samples", &flamestore::Client::add_samples,
                 "Add samples to a dataset.")
         .def("_load_samples", &flamestore::Client::load_samples,
